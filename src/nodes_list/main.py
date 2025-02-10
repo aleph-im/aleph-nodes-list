@@ -4,11 +4,13 @@ import logging
 from collections import defaultdict
 from json import JSONDecodeError
 from pathlib import Path
+from typing import Optional
+from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 import fastapi
-import starlette.responses
 from fastapi.responses import HTMLResponse
+
 from nodes_list.response_types import (
     CrnConfig,
     CRNSystemInfo,
@@ -21,11 +23,41 @@ logger = logging.getLogger(__name__)
 FAKE_GPU_AGGREGATE = {
     "community_wallet_address": "0x0000000000000000000000000000",
     "compatible_standard_gpus": [
-        {"vendor": "NVIDIA", "model": "L40S", "name": "L40S", "vendor_id": "10de", "device_id": "26b9"},
-        {"vendor": "NVIDIA", "model": "RTX 4090", "name": "RTX 4090", "vendor_id": "10de", "device_id": "2684"},
-        {"vendor": "NVIDIA", "model": "RTX 4090", "name": "RTX 4090 D", "vendor_id": "10de", "device_id": "2685"},
-        {"vendor": "NVIDIA", "model": "RTX 3090", "name": "RTX 3090", "vendor_id": "10de", "device_id": "2204"},
-        {"vendor": "NVIDIA", "model": "RTX 3090", "name": "RTX 3090 Ti", "vendor_id": "10de", "device_id": "2203"},
+        {
+            "vendor": "NVIDIA",
+            "model": "L40S",
+            "name": "L40S",
+            "vendor_id": "10de",
+            "device_id": "26b9",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "RTX 4090",
+            "name": "RTX 4090",
+            "vendor_id": "10de",
+            "device_id": "2684",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "RTX 4090",
+            "name": "RTX 4090 D",
+            "vendor_id": "10de",
+            "device_id": "2685",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "RTX 3090",
+            "name": "RTX 3090",
+            "vendor_id": "10de",
+            "device_id": "2204",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "RTX 3090",
+            "name": "RTX 3090 Ti",
+            "vendor_id": "10de",
+            "device_id": "2203",
+        },
         {
             "vendor": "NVIDIA",
             "model": "RTX 4000 ADA",
@@ -42,16 +74,76 @@ FAKE_GPU_AGGREGATE = {
         },
     ],
     "compatible_premium_gpus": [
-        {"vendor": "NVIDIA", "model": "H100", "name": "H100", "vendor_id": "10de", "device_id": "2336"},
-        {"vendor": "NVIDIA", "model": "H100", "name": "H100 NVSwitch", "vendor_id": "10de", "device_id": "22a3"},
-        {"vendor": "NVIDIA", "model": "H100", "name": "H100 CNX", "vendor_id": "10de", "device_id": "2313"},
-        {"vendor": "NVIDIA", "model": "H100", "name": "H100 SXM5 80GB", "vendor_id": "10de", "device_id": "2330"},
-        {"vendor": "NVIDIA", "model": "H100", "name": "H100 PCIe", "vendor_id": "10de", "device_id": "2331"},
-        {"vendor": "NVIDIA", "model": "A100", "name": "A100", "vendor_id": "10de", "device_id": "2080"},
-        {"vendor": "NVIDIA", "model": "A100", "name": "A100", "vendor_id": "10de", "device_id": "2081"},
-        {"vendor": "NVIDIA", "model": "A100", "name": "A100 SXM4 80GB", "vendor_id": "10de", "device_id": "20b2"},
-        {"vendor": "NVIDIA", "model": "A100", "name": "A100 PCIe 80GB", "vendor_id": "10de", "device_id": "20b5"},
-        {"vendor": "NVIDIA", "model": "A100", "name": "A100X", "vendor_id": "10de", "device_id": "20b8"},
+        {
+            "vendor": "NVIDIA",
+            "model": "H100",
+            "name": "H100",
+            "vendor_id": "10de",
+            "device_id": "2336",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "H100",
+            "name": "H100 NVSwitch",
+            "vendor_id": "10de",
+            "device_id": "22a3",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "H100",
+            "name": "H100 CNX",
+            "vendor_id": "10de",
+            "device_id": "2313",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "H100",
+            "name": "H100 SXM5 80GB",
+            "vendor_id": "10de",
+            "device_id": "2330",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "H100",
+            "name": "H100 PCIe",
+            "vendor_id": "10de",
+            "device_id": "2331",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "A100",
+            "name": "A100",
+            "vendor_id": "10de",
+            "device_id": "2080",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "A100",
+            "name": "A100",
+            "vendor_id": "10de",
+            "device_id": "2081",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "A100",
+            "name": "A100 SXM4 80GB",
+            "vendor_id": "10de",
+            "device_id": "20b2",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "A100",
+            "name": "A100 PCIe 80GB",
+            "vendor_id": "10de",
+            "device_id": "20b5",
+        },
+        {
+            "vendor": "NVIDIA",
+            "model": "A100",
+            "name": "A100X",
+            "vendor_id": "10de",
+            "device_id": "20b8",
+        },
     ],
 }
 
@@ -75,7 +167,6 @@ FORBIDDEN_HOSTS = [
 ]
 
 API_HOST = "https://api2.aleph.im"
-from urllib.parse import ParseResult, urlparse
 
 
 def sanitize_url(url: str) -> str:
@@ -100,7 +191,7 @@ def sanitize_url(url: str) -> str:
     return url
 
 
-def is_url_valid(url: str) -> str:
+def is_url_valid(url: str) -> bool:
     """Ensure that the URL is valid and not obviously irrelevant.
 
     Args:
@@ -108,6 +199,7 @@ def is_url_valid(url: str) -> str:
     Returns:
         Sanitized URL.
     """
+    # noinspection PyBroadException
     try:
         sanitize_url(url)
         return True
@@ -115,7 +207,7 @@ def is_url_valid(url: str) -> str:
         return False
 
 
-async def _fetch_node_list() -> NodeAggregate:
+async def _fetch_node_list() -> Optional[NodeAggregate]:
     """Fetch node aggregates"""
     aggregate_endpoint = "/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel"
     node_link = API_HOST.rstrip("/") + aggregate_endpoint
@@ -125,7 +217,7 @@ async def _fetch_node_list() -> NodeAggregate:
         async with session.get(node_link) as resp:
             if resp.status != 200:
                 logger.error("Unable to fetch node information")
-                return
+                return None
 
             data = await resp.json()
             return data
@@ -138,6 +230,7 @@ async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict | None:
 
     Args:
         node_url: URL of the compute node.
+        endpoint: endpoint to call.
     Returns:
         CRN information.
     """
@@ -197,48 +290,18 @@ async def fetch_crn_system(node_url: str) -> CRNSystemInfo | None:
     return await fetch_crn_endpoint(node_url, PATH_ABOUT_USAGE_SYSTEM)
 
 
-CRN_INFOS = defaultdict(dict)
-
-
-async def fetch_node_list_and_node_data():
-    """Retrieve the node list and data from each node"""
-    node_list = await _fetch_node_list()
-    crns = node_list["data"]["corechannel"]["resource_nodes"]
-
-    async def retrieve_node_info(node: ResourceNodeInfo):
-        node_url = node["address"]
-        hash = node["hash"]
-        print(node_url)
-
-        fetched_info = await fetch_crn_config(node_url)
-        if fetched_info:
-            CRN_INFOS[hash]["config"] = fetched_info
-            CRN_INFOS[hash]["config_fetch_time"] = str(datetime.datetime.now(datetime.UTC))
-            CRN_INFOS[hash]["config_error"] = fetched_info
-        else:
-            CRN_INFOS[hash]["config_fetch_time"] = str(datetime.datetime.now(datetime.UTC))
-            CRN_INFOS[hash]["config_error"] = "ERROR"
-
-    crns = crns[:10]
-    futures = [retrieve_node_info(node) for node in crns]
-    import asyncio
-
-    await asyncio.gather(*futures)
-    return dict(CRN_INFOS)
-
-
 class CRNData:
     """Data fetched from CRN endpoints"""
 
-    config: CrnConfig = None
-    config_fetched_at: datetime.datetime = None  # Last successful data
-    error: Exception = None
-    error_at: datetime.datetime
+    config: Optional[CrnConfig] = None
+    config_fetched_at: Optional[datetime.datetime] = None  # Last successful data
+    error: Optional[Exception] = None
+    error_at: Optional[datetime.datetime]
     node_url: str
-    system_data: CrnConfig = None
+    system_data: Optional[CrnConfig] = None
     system_data_fetched_at: datetime.datetime = None  # Last successful data
-    sytem_error: Exception
-    system_error_at: datetime.datetime
+    system_error: Optional[Exception] = None
+    system_error_at: Optional[datetime.datetime]
     node_url: str
 
     @property
@@ -247,7 +310,7 @@ class CRNData:
 
     @property
     def compatible_gpus(self):
-        pass
+        return
         # for gpu in self.system_data.
         # FAKE_GPU_AGGREGATE
 
@@ -283,7 +346,9 @@ class CRNData:
 
     @property
     def confidential_support(self):
-        return self.config and self.config["computing"].get("ENABLE_CONFIDENTIAL_COMPUTING")
+        return self.config and self.config["computing"].get(
+            "ENABLE_CONFIDENTIAL_COMPUTING"
+        )
 
     @property
     def qemu_support(self):
@@ -300,7 +365,15 @@ class DataCache:
 
     refresh_task: asyncio.Task = None
 
-    async def get_data(self) -> dict:
+    async def ensure_fresh_data(self) -> tuple[NodeAggregate, dict]:
+        """Ensure we refresh the data and return it
+
+        1. if data is older than big threshold.
+        Wait till we have refreshed the whole data
+        2. if data is older than small threshold, launch refresh in background
+        and use cached data for now
+        3. else return data directly
+        """
         if not self.node_list_fetched_at or datetime.datetime.now(
             datetime.UTC
         ) - self.node_list_fetched_at >= datetime.timedelta(seconds=60):
@@ -314,7 +387,9 @@ class DataCache:
             # We return the cached version but launch a refresh in background
             logger.info("Launching background refresh task")
 
-            self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
+            self.refresh_task = asyncio.create_task(
+                self.fetch_node_list_and_node_data()
+            )
 
             await self.fetch_node_list_and_node_data()
         else:
@@ -323,23 +398,23 @@ class DataCache:
 
     async def fetch_node_list_and_node_data(self):
         """Retrieve the node list and data from each node"""
-        self.node_list = await _fetch_node_list()
+        node_list = await _fetch_node_list()
+        if node_list:
+            self.node_list = node_list
         crns = self.node_list["data"]["corechannel"]["resource_nodes"]
         self.node_list_fetched_at = datetime.datetime.now(datetime.UTC)
 
         async def retrieve_node_config(node: ResourceNodeInfo):
-            node_url = node["address"]
-            hash = node["hash"]
-            crn_config = self.crn_infos[hash]
-            crn_config.node_url = node_url
+            crn_hash = node["hash"]
+            crn_config = self.crn_infos[crn_hash]
+            crn_config.node_url = node["address"]
 
             await crn_config.fetch_config()
 
         async def retrieve_system_info(node: ResourceNodeInfo):
-            node_url = node["address"]
-            hash = node["hash"]
-            crn_config = self.crn_infos[hash]
-            crn_config.node_url = node_url
+            crn_hash = node["hash"]
+            crn_config = self.crn_infos[crn_hash]
+            crn_config.node_url = node["address"]
 
             await crn_config.fetch_system()
 
@@ -353,16 +428,17 @@ class DataCache:
         resp = {"last_refresh": self.node_list_fetched_at}
         crns_resp = []
         for crn in self.node_list["data"]["corechannel"]["resource_nodes"]:
-            hash = crn["hash"]
+            crn_hash = crn["hash"]
+            crn_info = self.crn_infos[crn_hash]
             crn_resp = {
                 **crn,
-                "config_from_crn": self.crn_infos[hash].config is not None,
-                "debug_config_from_crn_at": self.crn_infos[hash].config_fetched_at,
-                "debug_config_from_crn_error": self.crn_infos[hash].error,
-                "gpu_support": self.crn_infos[hash].gpu_support,
-                "confidential_support": self.crn_infos[hash].confidential_support,
-                "qemu_support": self.crn_infos[hash].qemu_support,
-                "system_usage": self.crn_infos[hash].system_data,
+                "config_from_crn": crn_info.config is not None,
+                "debug_config_from_crn_at": crn_info.config_fetched_at,
+                "debug_config_from_crn_error": crn_info.error,
+                "gpu_support": crn_info.gpu_support,
+                "confidential_support": crn_info.confidential_support,
+                "qemu_support": crn_info.qemu_support,
+                "system_usage": crn_info.system_data,
             }
             crns_resp.append(crn_resp)
 
@@ -380,22 +456,25 @@ def index() -> str:
 
 @app.get("/crns.json")
 async def root():
-    # return starlette.responses.JSONResponse(await fetch_node_list_and_node_data())
-    data = await data_cache.get_data()
-    data = data_cache.format_response()
+    await data_cache.ensure_fresh_data()
+    response = data_cache.format_response()
 
-    return data
+    return response
 
 
 @app.get("/debug/nodes_aggregate")
 async def debug_node_list():
-    "Raw aggregate"
-    return starlette.responses.JSONResponse(await _fetch_node_list())
+    """Raw data"""
+    data = await data_cache.ensure_fresh_data()
+    return data
 
 
 @app.get("/debug.html", response_class=HTMLResponse)
-def index() -> str:
+def debug_page() -> str:
     return (Path(__file__).parent / "templates/debug.html").read_text()
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s %(name)s:%(lineno)s | %(message)s ")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s %(name)s:%(lineno)s | %(message)s ",
+)
