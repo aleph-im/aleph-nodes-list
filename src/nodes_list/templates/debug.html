@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRN Data Table</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-family: Arial, sans-serif;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:nth-child(odd) {
+            background-color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+<p>Last Refresh:
+ <span id="last-refresh">N/A</span> <button onclick="fetchCRNData()">Refresh</button>
+    <span id="spinner">🔄 Loading...</span>
+Total Rows: <span id="row-count">0</span></p>
+
+<table>
+    <thead>
+    <tr id="table-headers"></tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+</table>
+
+<script>
+    async function fetchCRNData() {
+        try {
+            document.getElementById('spinner').style.display = 'inline';
+            const response = await fetch('/crns.json');
+            const data = await response.json();
+            document.getElementById('spinner').style.display = 'none';
+
+            document.getElementById('last-refresh').textContent = data.last_refresh;
+
+            const crns = data.crns;
+            const tableBody = document.getElementById('table-body');
+            const tableHeaders = document.getElementById('table-headers');
+
+            tableBody.innerHTML = '';
+            tableHeaders.innerHTML = '<th>#</th>';
+
+            if (crns.length > 0) {
+                const keys = Object.keys(crns[0]);
+                keys.forEach(key => {
+                    const th = document.createElement('th');
+                    th.textContent = key;
+                    tableHeaders.appendChild(th);
+                });
+
+                crns.forEach((crn, index) => {
+                    const row = document.createElement('tr');
+
+                    const indexTd = document.createElement('td');
+                    indexTd.textContent = index + 1;
+                    row.appendChild(indexTd);
+
+                    keys.forEach(key => {
+                        const td = document.createElement('td');
+                        let value = crn[key];
+                        if (typeof value === 'object' && value !== null) {
+                            let jsonString = JSON.stringify(value, null, 2);
+                            td.textContent = jsonString.length > 30 ? jsonString.substring(0, 30) + '...' : jsonString;
+                            td.title = jsonString;
+                        } else {
+                            td.textContent = value !== null ? value : 'N/A';
+                        }
+                        row.appendChild(td);
+                    });
+                    tableBody.appendChild(row);
+                });
+            }
+
+            document.getElementById('row-count').textContent = crns.length;
+        } catch (error) {
+            console.error('Error fetching CRN data:', error);
+            document.getElementById('spinner').style.display = 'none';
+        }
+    }
+
+    window.onload = fetchCRNData;
+</script>
+</body>
+</html>

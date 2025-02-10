@@ -1,0 +1,7 @@
+/.idea
+.coverage
+htmlcov
+__pycache__
+*.zip
+/htmlcov
+__pycache__
