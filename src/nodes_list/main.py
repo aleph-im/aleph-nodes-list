@@ -5,11 +5,13 @@ from collections import defaultdict
 from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
+from typing import TypeVar, Generic
 from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 import fastapi
 from fastapi.responses import HTMLResponse
+
 from nodes_list.response_types import (
     CrnConfig,
     CRNSystemInfo,
@@ -19,7 +21,6 @@ from nodes_list.response_types import (
 )
 
 logger = logging.getLogger(__name__)
-
 
 API_HOST = "https://api2.aleph.im"
 SETTING_AGGREGATE_URL = (
@@ -164,7 +165,7 @@ async def fetch_crn_config(node_url: str) -> CrnConfig:
     return data
 
 
-async def fetch_crn_system(node_url: str) -> CRNSystemInfo | None:
+async def fetch_crn_system(node_url: str) -> CRNSystemInfo:
     """
     Fetches compute node  system information: resource and usage.
 
@@ -177,10 +178,40 @@ async def fetch_crn_system(node_url: str) -> CRNSystemInfo | None:
     return data
 
 
+T = TypeVar("T")  #
+
+
+class CachedResponse(Generic[T]):
+    """Cache for a JSON. Keep previous response in case of error"""
+
+    data: T | None = None
+    fetched_at: datetime.datetime | None = None
+    error: Exception | None = None
+    error_at: datetime.datetime | None
+
+    def set_data(self, new_data: T):
+        self.data = new_data
+        self.fetched_at = datetime.datetime.now(datetime.UTC)
+        # clear last error
+        self.error = None
+        self.error_at = None
+
+    def set_error(self, e: Exception):
+        self.error = e
+        self.error_at = datetime.datetime.now(datetime.UTC)
+
+    def is_older_than(self, **timedelta_args) -> bool:
+        return self.data is None or (
+            self.fetched_at is not None
+            and datetime.datetime.now(datetime.UTC) - self.fetched_at > datetime.timedelta(**timedelta_args)
+        )
+
+
 class CRNData:
     """Data fetched from CRN endpoints"""
 
-    config: CrnConfig | None = None
+    config: CachedResponse[CrnConfig]
+    system: CachedResponse[CRNSystemInfo]
     config_fetched_at: datetime.datetime | None = None  # Last successful data
     error: Exception | None = None
     error_at: datetime.datetime | None
@@ -190,6 +221,10 @@ class CRNData:
     system_error: Exception | None = None
     system_error_at: datetime.datetime | None
 
+    def __init__(self):
+        self.config = CachedResponse()
+        self.system = CachedResponse()
+
     @property
     def is_valid(self):
         return is_url_valid(self.node_url)
@@ -197,47 +232,36 @@ class CRNData:
     async def fetch_config(self) -> None:
         try:
             fetched_info = await fetch_crn_config(self.node_url)
-            self.config = fetched_info
-            self.config_fetched_at = datetime.datetime.now(datetime.UTC)
-            # clear last error
-            self.error = None
-            self.error_at = None
+            self.config.set_data(fetched_info)
 
         except Exception as e:
-            self.error = e
-            self.error_at = datetime.datetime.now(datetime.UTC)
+            self.config.set_error(e)
 
     async def fetch_system(self) -> None:
         try:
             fetched_info = await fetch_crn_system(self.node_url)
-            self.system_data = fetched_info
-            self.system_data_fetched_at = datetime.datetime.now(datetime.UTC)
-            # clear last error
-            self.system_error = None
-            self.system_error_at = None
-
+            self.system.set_data(fetched_info)
         except Exception as e:
-            self.system_error = e
-            self.system_error_at = datetime.datetime.now(datetime.UTC)
+            self.system.set_error(e)
 
     @property
     def gpu_support(self):
-        return self.config and self.config["computing"].get("ENABLE_GPU_SUPPORT")
+        return self.config.data and self.config.data["computing"].get("ENABLE_GPU_SUPPORT")
 
     @property
     def confidential_support(self):
-        return self.config and self.config["computing"].get("ENABLE_CONFIDENTIAL_COMPUTING")
+        return self.config.data and self.config.data["computing"].get("ENABLE_CONFIDENTIAL_COMPUTING")
 
     @property
     def qemu_support(self):
-        return self.config and self.config["computing"].get("ENABLE_QEMU_SUPPORT")
+        return self.config.data and self.config.data["computing"].get("ENABLE_QEMU_SUPPORT")
 
     @property
     async def compatible_gpus(self) -> list[dict]:
-        if not (self.system_data and "gpu" in self.system_data):
+        if not (self.system.data and "gpu" in self.system.data):
             return []
 
-        devices: list[Any] = self.system_data["gpu"]["devices"]
+        devices: list[Any] = self.system.data["gpu"]["devices"]
 
         aggr = await data_cache.get_gpu_aggregate()
         if not aggr:
@@ -248,11 +272,10 @@ class CRNData:
 
     @property
     async def compatible_available_gpus(self) -> list[dict]:
-        if not (self.system_data and "gpu" in self.system_data):
+        if not (self.system.data and "gpu" in self.system.data):
             return []
-        d = self.system_data["gpu"]
 
-        devices: list[Any] = self.system_data["gpu"]["available_devices"]
+        devices: list[Any] = self.system.data["gpu"]["available_devices"]
 
         aggr = await data_cache.get_gpu_aggregate()
         if not aggr:
@@ -266,13 +289,17 @@ app = fastapi.FastAPI(debug=True)
 
 
 class DataCache:
-    node_list: NodeAggregate
-    node_list_fetched_at: datetime.datetime | None = None
+    node_list: CachedResponse[NodeAggregate]
+    gpu_aggregate: CachedResponse[SettingsAggregate]
     crn_infos: defaultdict[str, CRNData] = defaultdict(CRNData)
 
     refresh_task: asyncio.Task | None = None
 
-    async def ensure_fresh_data(self) -> tuple[NodeAggregate, dict]:
+    def __init__(self):
+        self.gpu_aggregate = CachedResponse()
+        self.node_list = CachedResponse()
+
+    async def ensure_fresh_data(self) -> tuple[NodeAggregate | None, dict]:
         """Ensure we refresh the data and return it
 
         1. if data is older than big threshold.
@@ -281,33 +308,25 @@ class DataCache:
         and use cached data for now
         3. else return data directly
         """
-        if not self.node_list_fetched_at or datetime.datetime.now(
-            datetime.UTC
-        ) - self.node_list_fetched_at >= datetime.timedelta(seconds=60):
-            if self.refresh_task:
-                self.refresh_task.cancel()
+        if self.node_list.is_older_than(seconds=60):
             await self.fetch_node_list_and_node_data()
-        elif not self.node_list_fetched_at or datetime.datetime.now(
-            datetime.UTC
-        ) - self.node_list_fetched_at >= datetime.timedelta(seconds=31):
-            # If  data is between 30 and 61 seconds old
-            # We return the cached version but launch a refresh in background
+        elif self.node_list.is_older_than(seconds=31):
+            # If data is between 30 and 61 seconds old
+            # return the cached version but launch a refresh in background
             logger.info("Launching background refresh task")
 
             self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
-
-            await self.fetch_node_list_and_node_data()
         else:
             logger.info("Getting data from cache")
-        return self.node_list, self.crn_infos
+        return self.node_list.data, self.crn_infos
 
     async def fetch_node_list_and_node_data(self):
         """Retrieve the node list and data from each node"""
         node_list = await _fetch_node_list()
         if node_list:
-            self.node_list = node_list
-        crns = self.node_list["data"]["corechannel"]["resource_nodes"]
-        self.node_list_fetched_at = datetime.datetime.now(datetime.UTC)
+            self.node_list.set_data(node_list)
+        assert node_list
+        crns = node_list["data"]["corechannel"]["resource_nodes"]
 
         async def retrieve_node_config(node: ResourceNodeInfo):
             crn_hash = node["hash"]
@@ -324,7 +343,9 @@ class DataCache:
             await crn_config.fetch_system()
 
         # crns = crns[:10]
-        crns = [crn for crn in crns if "nerg" in crn["address"]]
+        # self.node_list.data["data"]["corechannel"]["resource_nodes"] = crns = [
+        #     crn for crn in crns if "nerg" in crn["address"]
+        # ]
         futures = [retrieve_node_config(node) for node in crns]
         futures += [retrieve_system_info(node) for node in crns]
 
@@ -332,9 +353,12 @@ class DataCache:
 
     async def format_response(self, filter_inactive: bool):
         resp: dict[str, list[Any] | datetime.datetime | None]
-        resp = {"last_refresh": self.node_list_fetched_at}
-        crns_resp = []
-        for crn in self.node_list["data"]["corechannel"]["resource_nodes"]:
+        crns_resp: list[dict] = []
+        resp = {"last_refresh": self.node_list.fetched_at, "crns": crns_resp}
+
+        if not self.node_list.data:
+            return resp
+        for crn in self.node_list.data["data"]["corechannel"]["resource_nodes"]:
             if filter_inactive and crn["inactive_since"] is not None:
                 continue
             crn_hash = crn["hash"]
@@ -342,43 +366,35 @@ class DataCache:
             crn_resp = {
                 **crn,
                 "config_from_crn": crn_info.config is not None,
-                "debug_config_from_crn_at": crn_info.config_fetched_at,
-                "debug_config_from_crn_error": str(crn_info.error),
+                "debug_config_from_crn_at": crn_info.config.fetched_at,
+                "debug_config_from_crn_error": str(crn_info.config.error),
                 "gpu_support": crn_info.gpu_support,
                 "confidential_support": crn_info.confidential_support,
                 "qemu_support": crn_info.qemu_support,
-                "system_usage": crn_info.system_data,
+                "system_usage": crn_info.system.data,
                 "compatible_gpus": await crn_info.compatible_gpus,
                 "compatible_available_gpus": await crn_info.compatible_available_gpus,
             }
             crns_resp.append(crn_resp)
 
-        resp["crns"] = crns_resp
         return resp
-
-    gpu_aggregate: SettingsAggregate | None = None
-    gpu_aggregate_fetched_at: datetime.datetime | None = None
-    gpu_aggregate_error: Exception | None = None
 
     async def fetch_gpu_aggregate(self):
         try:
             async with aiohttp.ClientSession() as session:
                 resp = await session.get(SETTING_AGGREGATE_URL)
                 resp.raise_for_status()
-                self.gpu_aggregate_fetched_at = datetime.datetime.now(datetime.UTC)
-                self.gpu_aggregate = await resp.json()
-                self.aggregate_error = None
+
+                data = await resp.json()
+                self.gpu_aggregate.set_data(data)
         except Exception as e:
             logger.warning("error fetching gpu aggregate: %s", e)
-            self.aggregate_error = e
+            self.gpu_aggregate.set_error(e)
 
     async def get_gpu_aggregate(self) -> SettingsAggregate | None:
-        if self.gpu_aggregate is None or (
-            self.gpu_aggregate_fetched_at
-            and datetime.datetime.now(datetime.UTC) - self.gpu_aggregate_fetched_at > datetime.timedelta(minutes=5)
-        ):
+        if self.gpu_aggregate.is_older_than(minutes=5):
             await self.fetch_gpu_aggregate()
-        return self.gpu_aggregate
+        return self.gpu_aggregate.data
 
 
 data_cache = DataCache()
