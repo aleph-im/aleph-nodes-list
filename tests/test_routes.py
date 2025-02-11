@@ -4,7 +4,8 @@ import pytest
 from aioresponses import aioresponses
 from fastapi.testclient import TestClient
 from nodes_list import main
-from nodes_list.main import app
+from nodes_list.main import app, SETTING_AGGREGATE_URL
+from .test_gpu_aggregate import FAKE_GPU_AGGREGATE
 
 from .test_parse_responses import mock_node_aggr, mock_status_config, mock_usage_system
 
@@ -46,6 +47,10 @@ def test_mock_data(patch_datetime_now):
             "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
             body=mock_node_aggr,
         )
+        mock_responses.get(
+            SETTING_AGGREGATE_URL,
+            body=FAKE_GPU_AGGREGATE,
+        )
         mock_responses.get("https://gpu-test-02.nergame.app/about/usage/system", body=mock_usage_system)
         mock_responses.get("https://gpu-test-02.nergame.app/status/config", body=mock_status_config)
         "Basic check that the endpoint don't crash"
@@ -60,7 +65,6 @@ def test_mock_data(patch_datetime_now):
                     "compatible_available_gpus": [],
                     "compatible_gpus": [
                         {
-                            "compatible": "compatible_standard_gpus",
                             "device_class": "0300",
                             "device_id": "10de:27b0",
                             "device_name": "AD104GL [RTX 4000 SFF Ada " "Generation]",
@@ -108,7 +112,6 @@ def test_mock_data(patch_datetime_now):
                             "available_devices": [],
                             "devices": [
                                 {
-                                    "compatible": "compatible_standard_gpus",
                                     "device_class": "0300",
                                     "device_id": "10de:27b0",
                                     "device_name": "AD104GL [RTX " "4000 SFF Ada " "Generation]",

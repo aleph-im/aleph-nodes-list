@@ -241,3 +241,26 @@ _sample_system_info = """
   "active": true
 }
 """
+
+
+class CompatibleGPUInfo(TypedDict):
+    name: str
+    model: str
+    vendor: str
+    model_id: str
+    vendor_id: str
+
+
+class Settings(TypedDict):
+    compatible_gpus: list[CompatibleGPUInfo]
+    community_wallet_address: str
+
+
+class Data(TypedDict):
+    settings: Settings
+
+
+class SettingsAggregate(TypedDict):
+    address: str
+    data: Data
+    info: dict  # Assuming "info" is a generic dictionary with unknown structure

@@ -15,150 +15,16 @@ from nodes_list.response_types import (
     CRNSystemInfo,
     NodeAggregate,
     ResourceNodeInfo,
+    SettingsAggregate,
 )
 
 logger = logging.getLogger(__name__)
 
-FAKE_GPU_AGGREGATE = {
-    "community_wallet_address": "0x0000000000000000000000000000",
-    "compatible_standard_gpus": [
-        {
-            "vendor": "NVIDIA",
-            "model": "L40S",
-            "name": "L40S",
-            "vendor_id": "10de",
-            "device_id": "26b9",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "RTX 4090",
-            "name": "RTX 4090",
-            "vendor_id": "10de",
-            "device_id": "2684",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "RTX 4090",
-            "name": "RTX 4090 D",
-            "vendor_id": "10de",
-            "device_id": "2685",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "RTX 3090",
-            "name": "RTX 3090",
-            "vendor_id": "10de",
-            "device_id": "2204",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "RTX 3090",
-            "name": "RTX 3090 Ti",
-            "vendor_id": "10de",
-            "device_id": "2203",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "RTX 4000 ADA",
-            "name": "RTX 4000 SFF Ada Generation",
-            "vendor_id": "10de",
-            "device_id": "27b0",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "RTX 4000 ADA",
-            "name": "RTX 4000 Ada Generation",
-            "vendor_id": "10de",
-            "device_id": "27b2",
-        },
-    ],
-    "compatible_premium_gpus": [
-        {
-            "vendor": "NVIDIA",
-            "model": "H100",
-            "name": "H100",
-            "vendor_id": "10de",
-            "device_id": "2336",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "H100",
-            "name": "H100 NVSwitch",
-            "vendor_id": "10de",
-            "device_id": "22a3",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "H100",
-            "name": "H100 CNX",
-            "vendor_id": "10de",
-            "device_id": "2313",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "H100",
-            "name": "H100 SXM5 80GB",
-            "vendor_id": "10de",
-            "device_id": "2330",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "H100",
-            "name": "H100 PCIe",
-            "vendor_id": "10de",
-            "device_id": "2331",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "A100",
-            "name": "A100",
-            "vendor_id": "10de",
-            "device_id": "2080",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "A100",
-            "name": "A100",
-            "vendor_id": "10de",
-            "device_id": "2081",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "A100",
-            "name": "A100 SXM4 80GB",
-            "vendor_id": "10de",
-            "device_id": "20b2",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "A100",
-            "name": "A100 PCIe 80GB",
-            "vendor_id": "10de",
-            "device_id": "20b5",
-        },
-        {
-            "vendor": "NVIDIA",
-            "model": "A100",
-            "name": "A100X",
-            "vendor_id": "10de",
-            "device_id": "20b8",
-        },
-    ],
-}
 
-
-def find_in_aggr(aggr, gpu_device_id):
-    vendor_id, device_id = gpu_device_id.split(":")
-    for compatible_gpu in aggr["compatible_standard_gpus"]:
-        if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["device_id"] == device_id:
-            return "compatible_standard_gpus"
-
-    for compatible_gpu in aggr["compatible_premium_gpus"]:
-        if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["device_id"] == device_id:
-            return "compatible_premium_gpus"
-
-    return None  # not found
-
+API_HOST = "https://api2.aleph.im"
+SETTING_AGGREGATE_URL = (
+    API_HOST.rstrip("/") + "api/v0/aggregates/0xA07B1214bAe0D5ccAA25449C3149c0aC83658874.json?keys=settings"
+)
 
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
@@ -179,7 +45,15 @@ FORBIDDEN_HOSTS = [
     "youtube.com",
 ]
 
-API_HOST = "https://api2.aleph.im"
+
+def find_in_aggr(aggr: SettingsAggregate, gpu_device_id) -> bool:
+    """Find if gpu is present in the Settings aggregate compatible gpus list"""
+    compatibility_list = aggr["data"]["settings"]["compatible_gpus"]
+    vendor_id, model_id = gpu_device_id.split(":")
+    for compatible_gpu in compatibility_list:
+        if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["model_id"] == model_id:
+            return True
+    return False
 
 
 def sanitize_url(url: str) -> str:
@@ -234,7 +108,6 @@ async def _fetch_node_list() -> NodeAggregate | None:
 
             data = await resp.json()
             return data
-            # return NodeInfo(**data)
 
 
 async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict:
@@ -361,40 +234,33 @@ class CRNData:
         return self.config and self.config["computing"].get("ENABLE_QEMU_SUPPORT")
 
     @property
-    def compatible_gpus(self) -> list[dict]:
+    async def compatible_gpus(self) -> list[dict]:
         if not (self.system_data and "gpu" in self.system_data):
             return []
 
         devices: list[Any] = self.system_data["gpu"]["devices"]
 
-        aggr = self.get_gpu_aggregate()
-        for gpu in devices:
-            found = find_in_aggr(aggr, gpu["device_id"])
-            gpu["compatible"] = found or "not_compatible"
-        for gpu in devices:
-            found = find_in_aggr(aggr, gpu["device_id"])
-            gpu["compatible"] = found or "not_compatible"
-        return devices
+        aggr = await data_cache.get_gpu_aggregate()
+        if not aggr:
+            logger.error("No settings aggregate, cannot filter devices.")
+            return []
+        compatible_gpu = [gpu for gpu in devices if find_in_aggr(aggr, gpu["device_id"])]
+        return compatible_gpu
 
     @property
-    def compatible_available_gpus(self) -> list[dict]:
+    async def compatible_available_gpus(self) -> list[dict]:
         if not (self.system_data and "gpu" in self.system_data):
             return []
         d = self.system_data["gpu"]
 
         devices: list[Any] = self.system_data["gpu"]["available_devices"]
 
-        aggr = self.get_gpu_aggregate()
-        for gpu in devices:
-            found = find_in_aggr(aggr, gpu["device_id"])
-            gpu["compatible"] = found or "not_compatible"
-        for gpu in devices:
-            found = find_in_aggr(aggr, gpu["device_id"])
-            gpu["compatible"] = found or "not_compatible"
-        return devices
-
-    def get_gpu_aggregate(self):
-        return FAKE_GPU_AGGREGATE
+        aggr = await data_cache.get_gpu_aggregate()
+        if not aggr:
+            logger.error("No settings aggregate, cannot filter devices.")
+            return []
+        compatible_gpu = [gpu for gpu in devices if find_in_aggr(aggr, gpu["device_id"])]
+        return compatible_gpu
 
 
 app = fastapi.FastAPI(debug=True)
@@ -459,12 +325,13 @@ class DataCache:
             await crn_config.fetch_system()
 
         # crns = crns[:10]
+        crns = [crn for crn in crns if "nerg" in crn["address"]]
         futures = [retrieve_node_config(node) for node in crns]
         futures += [retrieve_system_info(node) for node in crns]
 
         await asyncio.gather(*futures)
 
-    def format_response(self, filter_inactive: bool):
+    async def format_response(self, filter_inactive: bool):
         resp: dict[str, list[Any] | datetime.datetime | None]
         resp = {"last_refresh": self.node_list_fetched_at}
         crns_resp = []
@@ -482,13 +349,37 @@ class DataCache:
                 "confidential_support": crn_info.confidential_support,
                 "qemu_support": crn_info.qemu_support,
                 "system_usage": crn_info.system_data,
-                "compatible_gpus": crn_info.compatible_gpus,
-                "compatible_available_gpus": crn_info.compatible_available_gpus,
+                "compatible_gpus": await crn_info.compatible_gpus,
+                "compatible_available_gpus": await crn_info.compatible_available_gpus,
             }
             crns_resp.append(crn_resp)
 
         resp["crns"] = crns_resp
         return resp
+
+    gpu_aggregate: SettingsAggregate | None = None
+    gpu_aggregate_fetched_at: datetime.datetime | None = None
+    gpu_aggregate_error: Exception | None = None
+
+    async def fetch_gpu_aggregate(self):
+        try:
+            async with aiohttp.ClientSession() as session:
+                resp = await session.get(SETTING_AGGREGATE_URL)
+                resp.raise_for_status()
+                self.gpu_aggregate_fetched_at = datetime.datetime.now(datetime.UTC)
+                self.gpu_aggregate = await resp.json()
+                self.aggregate_error = None
+        except Exception as e:
+            logger.warning("error fetching gpu aggregate: %s", e)
+            self.aggregate_error = e
+
+    async def get_gpu_aggregate(self) -> SettingsAggregate | None:
+        if self.gpu_aggregate is None or (
+            self.gpu_aggregate_fetched_at
+            and datetime.datetime.now(datetime.UTC) - self.gpu_aggregate_fetched_at > datetime.timedelta(minutes=5)
+        ):
+            await self.fetch_gpu_aggregate()
+        return self.gpu_aggregate
 
 
 data_cache = DataCache()
@@ -502,7 +393,7 @@ def index() -> str:
 @app.get("/crns.json")
 async def root(filter_inactive: bool = False):
     await data_cache.ensure_fresh_data()
-    response = data_cache.format_response(filter_inactive=filter_inactive)
+    response = await data_cache.format_response(filter_inactive=filter_inactive)
 
     return response
 
