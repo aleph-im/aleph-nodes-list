@@ -7,7 +7,12 @@ from nodes_list import main
 from nodes_list.main import app, SETTING_AGGREGATE_URL
 from .test_gpu_aggregate import FAKE_GPU_AGGREGATE
 
-from .test_parse_responses import mock_node_aggr, mock_status_config, mock_usage_system
+from .test_parse_responses import (
+    mock_node_aggr,
+    mock_status_config,
+    mock_usage_system,
+    mock_ipv6_check,
+)
 
 client = TestClient(app)
 
@@ -53,10 +58,11 @@ def test_mock_data(patch_datetime_now):
         )
         mock_responses.get("https://gpu-test-02.nergame.app/about/usage/system", body=mock_usage_system)
         mock_responses.get("https://gpu-test-02.nergame.app/status/config", body=mock_status_config)
+        mock_responses.get("https://gpu-test-02.nergame.app/status/check/ipv6", body=mock_ipv6_check)
         "Basic check that the endpoint don't crash"
         response = client.get("/crns.json")
         assert response.status_code == 200
-        assert response.json() == {
+        expected_response = {
             "crns": [
                 {
                     "address": "https://gpu-test-02.nergame.app/",
@@ -81,6 +87,7 @@ def test_mock_data(patch_datetime_now):
                     "gpu_support": True,
                     "hash": "e9423d9f9fd27cdc9c4c27d5cf3120ef573eece260d44e6df76b3c27569a3154",
                     "inactive_since": 21424667,
+                    "ipv6_check": {"host": True, "vm": True},
                     "locked": False,
                     "manager": "",
                     "multiaddress": "",
@@ -140,3 +147,4 @@ def test_mock_data(patch_datetime_now):
             ],
             "last_refresh": "2020-12-25T17:05:55+00:00",
         }
+        assert response.json() == expected_response

@@ -16,8 +16,8 @@ from nodes_list.response_types import (
     CrnConfig,
     CRNSystemInfo,
     NodeAggregate,
-    ResourceNodeInfo,
     SettingsAggregate,
+    CheckIPv6,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ SETTING_AGGREGATE_URL = (
 
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
+PATH_IPv6_CHECK = "/status/check/ipv6"
 
 # Some users had fun adding URLs that are obviously not CRNs.
 # If you work for one of these companies, please send a large check to the Aleph team,
@@ -212,6 +213,7 @@ class CRNData:
 
     config: CachedResponse[CrnConfig]
     system: CachedResponse[CRNSystemInfo]
+    check_ipv6: CachedResponse[CheckIPv6]
     config_fetched_at: datetime.datetime | None = None  # Last successful data
     error: Exception | None = None
     error_at: datetime.datetime | None
@@ -224,6 +226,7 @@ class CRNData:
     def __init__(self):
         self.config = CachedResponse()
         self.system = CachedResponse()
+        self.check_ipv6 = CachedResponse()
 
     @property
     def is_valid(self):
@@ -233,9 +236,15 @@ class CRNData:
         try:
             fetched_info = await fetch_crn_config(self.node_url)
             self.config.set_data(fetched_info)
-
         except Exception as e:
             self.config.set_error(e)
+
+    async def fetch_ipv6(self) -> None:
+        try:
+            fetched_info: CheckIPv6 = await fetch_crn_endpoint(self.node_url, PATH_IPv6_CHECK)  # type: ignore
+            self.check_ipv6.set_data(fetched_info)
+        except Exception as e:
+            self.check_ipv6.set_error(e)
 
     async def fetch_system(self) -> None:
         try:
@@ -328,26 +337,18 @@ class DataCache:
         assert node_list
         crns = node_list["data"]["corechannel"]["resource_nodes"]
 
-        async def retrieve_node_config(node: ResourceNodeInfo):
-            crn_hash = node["hash"]
-            crn_config = self.crn_infos[crn_hash]
-            crn_config.node_url = node["address"]
-
-            await crn_config.fetch_config()
-
-        async def retrieve_system_info(node: ResourceNodeInfo):
-            crn_hash = node["hash"]
-            crn_config = self.crn_infos[crn_hash]
-            crn_config.node_url = node["address"]
-
-            await crn_config.fetch_system()
-
         # crns = crns[:10]
         # self.node_list.data["data"]["corechannel"]["resource_nodes"] = crns = [
         #     crn for crn in crns if "nerg" in crn["address"]
         # ]
-        futures = [retrieve_node_config(node) for node in crns]
-        futures += [retrieve_system_info(node) for node in crns]
+        futures = []
+        for node in crns:
+            crn_hash = node["hash"]
+            crn_config = self.crn_infos[crn_hash]
+            crn_config.node_url = node["address"]
+            futures.append(crn_config.fetch_system())
+            futures.append(crn_config.fetch_config())
+            futures.append(crn_config.fetch_ipv6())
 
         await asyncio.gather(*futures)
 
@@ -374,6 +375,7 @@ class DataCache:
                 "system_usage": crn_info.system.data,
                 "compatible_gpus": await crn_info.compatible_gpus,
                 "compatible_available_gpus": await crn_info.compatible_available_gpus,
+                "ipv6_check": crn_info.check_ipv6.data,
             }
             crns_resp.append(crn_resp)
 

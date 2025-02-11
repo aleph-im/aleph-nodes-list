@@ -144,6 +144,9 @@ mock_status_config = """
 }"""
 
 
+mock_ipv6_check = """{"host": true, "vm": true}"""
+
+
 @pytest.mark.asyncio
 async def test_fetch_node_list():
     with aioresponses() as mock_responses:
@@ -163,15 +166,16 @@ async def test_fetch_node_data():
         )
         mock_responses.get("https://gpu-test-02.nergame.app/about/usage/system", body=mock_usage_system)
         mock_responses.get("https://gpu-test-02.nergame.app/status/config", body=mock_status_config)
+        mock_responses.get("https://gpu-test-02.nergame.app/status/check/ipv6", body=mock_ipv6_check)
 
         cache = DataCache()
         await cache.fetch_node_list_and_node_data()
-        assert len(cache.node_list["data"]["corechannel"]["resource_nodes"]) == 1
+        assert len(cache.node_list.data["data"]["corechannel"]["resource_nodes"]) == 1
         assert len(cache.crn_infos) == 1
-        assert cache.crn_infos["e9423d9f9fd27cdc9c4c27d5cf3120ef573eece260d44e6df76b3c27569a3154"].gpu_support == True
-        assert cache.crn_infos["e9423d9f9fd27cdc9c4c27d5cf3120ef573eece260d44e6df76b3c27569a3154"].error == None
+        assert cache.crn_infos["e9423d9f9fd27cdc9c4c27d5cf3120ef573eece260d44e6df76b3c27569a3154"].gpu_support is True
+        assert cache.crn_infos["e9423d9f9fd27cdc9c4c27d5cf3120ef573eece260d44e6df76b3c27569a3154"].config.error == None
         assert (
-            cache.crn_infos["e9423d9f9fd27cdc9c4c27d5cf3120ef573eece260d44e6df76b3c27569a3154"].system_data["mem"][
+            cache.crn_infos["e9423d9f9fd27cdc9c4c27d5cf3120ef573eece260d44e6df76b3c27569a3154"].system.data["mem"][
                 "total_kB"
             ]
             == 67219543

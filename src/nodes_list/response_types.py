@@ -264,3 +264,10 @@ class SettingsAggregate(TypedDict):
     address: str
     data: Data
     info: dict  # Assuming "info" is a generic dictionary with unknown structure
+
+
+## /status/check/ipv6
+# {"host": true, "vm": true}
+class CheckIPv6(TypedDict):
+    host: bool
+    vm: bool
