@@ -48,7 +48,7 @@ Total Rows: <span id="row-count">0</span></p>
     async function fetchCRNData() {
         try {
             document.getElementById('spinner').style.display = 'inline';
-            const response = await fetch('/crns.json');
+            const response = await fetch('crns.json');
             const data = await response.json();
             document.getElementById('spinner').style.display = 'none';
 
