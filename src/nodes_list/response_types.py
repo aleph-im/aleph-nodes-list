@@ -243,12 +243,12 @@ _sample_system_info = """
 """
 
 
+## SettingsAggregate , see for example tests/test_gpu_aggregate.py:FAKE_GPU_AGGREGATE
 class CompatibleGPUInfo(TypedDict):
     name: str
     model: str
     vendor: str
-    model_id: str
-    vendor_id: str
+    device_id: str
 
 
 class Settings(TypedDict):

@@ -8,27 +8,122 @@ FAKE_GPU_AGGREGATE = """{
   "data": {
     "settings": {
       "compatible_gpus": [
-        { "name": "L40S", "model": "L40S", "vendor": "NVIDIA", "model_id": "26b9", "vendor_id": "10de" },
-        { "name": "RTX 5090", "model": "RTX 5090", "vendor": "NVIDIA", "model_id": "2685", "vendor_id": "10de" },
-        { "name": "RTX 5090 D", "model": "RTX 5090", "vendor": "NVIDIA", "model_id": "2687", "vendor_id": "10de" },
-        { "name": "RTX 4090", "model": "RTX 4090", "vendor": "NVIDIA", "model_id": "2684", "vendor_id": "10de" },
-        { "name": "RTX 4090 D", "model": "RTX 4090", "vendor": "NVIDIA", "model_id": "2685", "vendor_id": "10de" },
-        { "name": "RTX 3090", "model": "RTX 3090", "vendor": "NVIDIA", "model_id": "2204", "vendor_id": "10de" },
-        { "name": "RTX 3090 Ti", "model": "RTX 3090", "vendor": "NVIDIA", "model_id": "2203", "vendor_id": "10de" },
-        { "name": "RTX 4000 SFF Ada Generation", "model": "RTX 4000 ADA", "vendor": "NVIDIA", "model_id": "27b0", "vendor_id": "10de" },
-        { "name": "RTX 4000 Ada Generation", "model": "RTX 4000 ADA", "vendor": "NVIDIA", "model_id": "27b2", "vendor_id": "10de" },
-        { "name": "H100", "model": "H100", "vendor": "NVIDIA", "model_id": "2336", "vendor_id": "10de" },
-        { "name": "H100 NVSwitch", "model": "H100", "vendor": "NVIDIA", "model_id": "22a3", "vendor_id": "10de" },
-        { "name": "H100 CNX", "model": "H100", "vendor": "NVIDIA", "model_id": "2313", "vendor_id": "10de" },
-        { "name": "H100 SXM5 80GB", "model": "H100", "vendor": "NVIDIA", "model_id": "2330", "vendor_id": "10de" },
-        { "name": "H100 PCIe", "model": "H100", "vendor": "NVIDIA", "model_id": "2331", "vendor_id": "10de" },
-        { "name": "A100", "model": "A100", "vendor": "NVIDIA", "model_id": "2080", "vendor_id": "10de" },
-        { "name": "A100", "model": "A100", "vendor": "NVIDIA", "model_id": "2081", "vendor_id": "10de" },
-        { "name": "A100 SXM4 80GB", "model": "A100", "vendor": "NVIDIA", "model_id": "20b2", "vendor_id": "10de" },
-        { "name": "A100 PCIe 80GB", "model": "A100", "vendor": "NVIDIA", "model_id": "20b5", "vendor_id": "10de" },
-        { "name": "A100X", "model": "A100", "vendor": "NVIDIA", "model_id": "20b8", "vendor_id": "10de" }
+        {
+          "name": "AD102GL [L40S]",
+          "model": "L40S",
+          "vendor": "NVIDIA",
+          "device_id": "10de:26b9"
+        },
+        {
+          "name": "GB202 [GeForce RTX 5090]",
+          "model": "RTX 5090",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2685"
+        },
+        {
+          "name": "GB202 [GeForce RTX 5090 D]",
+          "model": "RTX 5090",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2687"
+        },
+        {
+          "name": "AD102 [GeForce RTX 4090]",
+          "model": "RTX 4090",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2684"
+        },
+        {
+          "name": "AD102 [GeForce RTX 4090 D]",
+          "model": "RTX 4090",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2685"
+        },
+        {
+          "name": "GA102 [GeForce RTX 3090]",
+          "model": "RTX 3090",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2204"
+        },
+        {
+          "name": "GA102 [GeForce RTX 3090 Ti]",
+          "model": "RTX 3090",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2203"
+        },
+        {
+          "name": "AD104GL [RTX 4000 SFF Ada Generation]",
+          "model": "RTX 4000 ADA",
+          "vendor": "NVIDIA",
+          "device_id": "10de:27b0"
+        },
+        {
+          "name": "AD104GL [RTX 4000 Ada Generation]",
+          "model": "RTX 4000 ADA",
+          "vendor": "NVIDIA",
+          "device_id": "10de:27b2"
+        },
+        {
+          "name": "GH100 [H100]",
+          "model": "H100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2336"
+        },
+        {
+          "name": "GH100 [H100 NVSwitch]",
+          "model": "H100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:22a3"
+        },
+        {
+          "name": "GH100 [H100 CNX]",
+          "model": "H100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2313"
+        },
+        {
+          "name": "GH100 [H100 SXM5 80GB]",
+          "model": "H100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2330"
+        },
+        {
+          "name": "GH100 [H100 PCIe]",
+          "model": "H100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2331"
+        },
+        {
+          "name": "GA100",
+          "model": "A100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2080"
+        },
+        {
+          "name": "GA100",
+          "model": "A100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:2081"
+        },
+        {
+          "name": "GA100 [A100 SXM4 80GB]",
+          "model": "A100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:20b2"
+        },
+        {
+          "name": "GA100 [A100 PCIe 80GB]",
+          "model": "A100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:20b5"
+        },
+        {
+          "name": "GA100 [A100X]",
+          "model": "A100",
+          "vendor": "NVIDIA",
+          "device_id": "10de:20b8"
+        }
       ],
-      "community_wallet_address": "0x0000000000000000000000000000"
+      "community_wallet_address": "0xA07B1214bAe0D5ccAA25449C3149c0aC83658874"
     }
   },
   "info": {}

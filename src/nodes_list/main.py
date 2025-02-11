@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 API_HOST = "https://api2.aleph.im"
 SETTING_AGGREGATE_URL = (
-    API_HOST.rstrip("/") + "api/v0/aggregates/0xA07B1214bAe0D5ccAA25449C3149c0aC83658874.json?keys=settings"
+    API_HOST.rstrip("/") + "/api/v0/aggregates/0xA07B1214bAe0D5ccAA25449C3149c0aC83658874.json?keys=settings"
 )
 
 PATH_STATUS_CONFIG = "/status/config"
@@ -49,9 +49,8 @@ FORBIDDEN_HOSTS = [
 def find_in_aggr(aggr: SettingsAggregate, gpu_device_id) -> bool:
     """Find if gpu is present in the Settings aggregate compatible gpus list"""
     compatibility_list = aggr["data"]["settings"]["compatible_gpus"]
-    vendor_id, model_id = gpu_device_id.split(":")
     for compatible_gpu in compatibility_list:
-        if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["model_id"] == model_id:
+        if compatible_gpu["device_id"] == gpu_device_id:
             return True
     return False
 
