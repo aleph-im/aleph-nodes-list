@@ -143,6 +143,7 @@ def test_mock_data(patch_datetime_now):
                     "terms_and_conditions": "a5e9c41304c53cef9764c87e66f70e822934e2111ee0eb33a063102af8a06180",
                     "time": 1734453024.6,
                     "type": "compute",
+                    "version": "1.3.0-41-g7303587",
                 }
             ],
             "last_refresh": "2020-12-25T17:05:55+00:00",

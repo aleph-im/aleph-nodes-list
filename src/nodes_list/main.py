@@ -369,6 +369,7 @@ class DataCache:
                 "config_from_crn": crn_info.config is not None,
                 "debug_config_from_crn_at": crn_info.config.fetched_at,
                 "debug_config_from_crn_error": str(crn_info.config.error),
+                "version": crn_info.config.data and crn_info.config.data["version"],
                 "gpu_support": crn_info.gpu_support,
                 "confidential_support": crn_info.confidential_support,
                 "qemu_support": crn_info.qemu_support,
