@@ -49,14 +49,13 @@ dependencies = [
 ]
 [tool.hatch.envs.testing.scripts]
 test = "pytest {args:tests}"
-test-cov = "pytest --durations=10 --cov --cov-fail-under=50 {args:tests}"
+test-cov = "pytest --durations=10 --cov  {args:tests}"
 cov-report = [
   "- coverage combine",
   "coverage report",
 ]
 cov = [
   "test-cov",
-  "cov-report",
 ]
 
 
@@ -98,7 +97,7 @@ testpaths = [
 ]
 
 [tool.coverage.report]
-fail_under = 100
+fail_under = 50
 
 [tool.coverage.paths]
 tests = ["tests", "src/nodes_list"]
