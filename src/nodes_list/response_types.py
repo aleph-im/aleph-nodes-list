@@ -11,7 +11,6 @@ class CommonNodeInfo(TypedDict):
     hash: str
     name: str
     time: float
-    type: str
     owner: str
     score: float
     banner: str

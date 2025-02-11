@@ -4,13 +4,12 @@ import logging
 from collections import defaultdict
 from json import JSONDecodeError
 from pathlib import Path
-from typing import Optional
+from typing import Any
 from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 import fastapi
 from fastapi.responses import HTMLResponse
-
 from nodes_list.response_types import (
     CrnConfig,
     CRNSystemInfo,
@@ -207,7 +206,7 @@ def is_url_valid(url: str) -> bool:
         return False
 
 
-async def _fetch_node_list() -> Optional[NodeAggregate]:
+async def _fetch_node_list() -> NodeAggregate | None:
     """Fetch node aggregates"""
     aggregate_endpoint = "/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel"
     node_link = API_HOST.rstrip("/") + aggregate_endpoint
@@ -224,7 +223,7 @@ async def _fetch_node_list() -> Optional[NodeAggregate]:
             # return NodeInfo(**data)
 
 
-async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict | None:
+async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict:
     """
     Call api endpoint on CRN
 
@@ -244,7 +243,7 @@ async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict | None:
             info: dict
             async with session.get(url) as resp:
                 resp.raise_for_status()
-                info = await resp.json()
+                info = await resp.json()  # type: ignore
                 return info
     except aiohttp.InvalidURL as e:
         logger.info(f"Invalid CRN URL: {url}: {e}")
@@ -266,7 +265,7 @@ async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict | None:
         raise
 
 
-async def fetch_crn_config(node_url: str) -> CrnConfig | None:
+async def fetch_crn_config(node_url: str) -> CrnConfig:
     """
     Fetches compute node config.
 
@@ -275,7 +274,8 @@ async def fetch_crn_config(node_url: str) -> CrnConfig | None:
     Returns:
         CRN information.
     """
-    return await fetch_crn_endpoint(node_url, PATH_STATUS_CONFIG)
+    data: CrnConfig = await fetch_crn_endpoint(node_url, PATH_STATUS_CONFIG)  # type: ignore
+    return data
 
 
 async def fetch_crn_system(node_url: str) -> CRNSystemInfo | None:
@@ -287,22 +287,22 @@ async def fetch_crn_system(node_url: str) -> CRNSystemInfo | None:
     Returns:
         CRN dict.
     """
-    return await fetch_crn_endpoint(node_url, PATH_ABOUT_USAGE_SYSTEM)
+    data: CRNSystemInfo = await fetch_crn_endpoint(node_url, PATH_ABOUT_USAGE_SYSTEM)  # type: ignore
+    return data
 
 
 class CRNData:
     """Data fetched from CRN endpoints"""
 
-    config: Optional[CrnConfig] = None
-    config_fetched_at: Optional[datetime.datetime] = None  # Last successful data
-    error: Optional[Exception] = None
-    error_at: Optional[datetime.datetime]
+    config: CrnConfig | None = None
+    config_fetched_at: datetime.datetime | None = None  # Last successful data
+    error: Exception | None = None
+    error_at: datetime.datetime | None
     node_url: str
-    system_data: Optional[CrnConfig] = None
-    system_data_fetched_at: datetime.datetime = None  # Last successful data
-    system_error: Optional[Exception] = None
-    system_error_at: Optional[datetime.datetime]
-    node_url: str
+    system_data: CRNSystemInfo | None = None
+    system_data_fetched_at: datetime.datetime | None = None  # Last successful data
+    system_error: Exception | None = None
+    system_error_at: datetime.datetime | None
 
     @property
     def is_valid(self):
@@ -346,9 +346,7 @@ class CRNData:
 
     @property
     def confidential_support(self):
-        return self.config and self.config["computing"].get(
-            "ENABLE_CONFIDENTIAL_COMPUTING"
-        )
+        return self.config and self.config["computing"].get("ENABLE_CONFIDENTIAL_COMPUTING")
 
     @property
     def qemu_support(self):
@@ -360,10 +358,10 @@ app = fastapi.FastAPI(debug=True)
 
 class DataCache:
     node_list: NodeAggregate
-    node_list_fetched_at: datetime.datetime = None
+    node_list_fetched_at: datetime.datetime | None = None
     crn_infos: defaultdict[str, CRNData] = defaultdict(CRNData)
 
-    refresh_task: asyncio.Task = None
+    refresh_task: asyncio.Task | None = None
 
     async def ensure_fresh_data(self) -> tuple[NodeAggregate, dict]:
         """Ensure we refresh the data and return it
@@ -387,9 +385,7 @@ class DataCache:
             # We return the cached version but launch a refresh in background
             logger.info("Launching background refresh task")
 
-            self.refresh_task = asyncio.create_task(
-                self.fetch_node_list_and_node_data()
-            )
+            self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
 
             await self.fetch_node_list_and_node_data()
         else:
@@ -425,6 +421,7 @@ class DataCache:
         await asyncio.gather(*futures)
 
     def format_response(self):
+        resp: dict[str, list[Any] | datetime.datetime | None]
         resp = {"last_refresh": self.node_list_fetched_at}
         crns_resp = []
         for crn in self.node_list["data"]["corechannel"]["resource_nodes"]:

@@ -21,6 +21,7 @@ classifiers = [
 dependencies = [
     "fastapi",
     "uvicorn",
+    "aiohttp",
 ]
 
 
@@ -60,12 +61,15 @@ cov = [
 
 
 [tool.hatch.envs.linting]
-detached = true
+#detached = true
 dependencies = [
   "mypy==1.13.0",
 ]
 [tool.hatch.envs.linting.scripts]
-typing = "mypy {args:.}"
+typing = "mypy  --config-file=pyproject.toml  {args:src/}"
+all = [
+    "typing"
+]
 
 #[tool.hatch.envs.deployment]
 #detached = true

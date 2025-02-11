@@ -3,12 +3,10 @@ import datetime
 import pytest
 from aioresponses import aioresponses
 from fastapi.testclient import TestClient
-
-
+from nodes_list import main
 from nodes_list.main import app
-import nodes_list.main as main
-from .test_parse_responses import mock_node_aggr, mock_status_config, mock_usage_system
 
+from .test_parse_responses import mock_node_aggr, mock_status_config, mock_usage_system
 
 client = TestClient(app)
 

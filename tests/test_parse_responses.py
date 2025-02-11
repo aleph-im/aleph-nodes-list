@@ -1,6 +1,5 @@
 import pytest
 from aioresponses import aioresponses
-
 from nodes_list.main import DataCache, _fetch_node_list
 
 mock_node_aggr = """
