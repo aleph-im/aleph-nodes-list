@@ -32,7 +32,8 @@ def test_index():
 
 
 def test_crn():
-    "Basic check that the endpoint don't crash"
+    """Basic check that the endpoint don't crash.
+    TEST WITH REAL ENDPOINTS so might be slow"""
     response = client.get("/crns.json")
     assert response.status_code == 200
     assert response.json()
@@ -56,10 +57,21 @@ def test_mock_data(patch_datetime_now):
                     "address": "https://gpu-test-02.nergame.app/",
                     "authorized": "",
                     "banner": "",
+                    "compatible_available_gpus": [],
+                    "compatible_gpus": [
+                        {
+                            "compatible": "compatible_standard_gpus",
+                            "device_class": "0300",
+                            "device_id": "10de:27b0",
+                            "device_name": "AD104GL [RTX 4000 SFF Ada " "Generation]",
+                            "pci_host": "01:00.0",
+                            "vendor": "NVIDIA",
+                        }
+                    ],
                     "confidential_support": False,
                     "config_from_crn": True,
                     "debug_config_from_crn_at": "2020-12-25T17:05:55+00:00",
-                    "debug_config_from_crn_error": None,
+                    "debug_config_from_crn_error": "None",
                     "decentralization": 0.8393111079955136,
                     "description": "This is a test CRN, please don't use it",
                     "gpu_support": True,
@@ -85,13 +97,18 @@ def test_mock_data(patch_datetime_now):
                         "cpu": {
                             "core_frequencies": {"max": 4280, "min": 800},
                             "count": 20,
-                            "load_average": {"load1": 2.283203125, "load15": 2.27001953125, "load5": 2.27490234375},
+                            "load_average": {
+                                "load1": 2.283203125,
+                                "load15": 2.27001953125,
+                                "load5": 2.27490234375,
+                            },
                         },
                         "disk": {"available_kB": 1450697875, "total_kB": 1853812338},
                         "gpu": {
                             "available_devices": [],
                             "devices": [
                                 {
+                                    "compatible": "compatible_standard_gpus",
                                     "device_class": "0300",
                                     "device_id": "10de:27b0",
                                     "device_name": "AD104GL [RTX " "4000 SFF Ada " "Generation]",
@@ -101,8 +118,17 @@ def test_mock_data(patch_datetime_now):
                             ],
                         },
                         "mem": {"available_kB": 40982622, "total_kB": 67219543},
-                        "period": {"duration_seconds": 60, "start_timestamp": "2025-02-10T13:43:00+00:00"},
-                        "properties": {"cpu": {"architecture": "x86_64", "features": [], "vendor": "GenuineIntel"}},
+                        "period": {
+                            "duration_seconds": 60,
+                            "start_timestamp": "2025-02-10T13:43:00+00:00",
+                        },
+                        "properties": {
+                            "cpu": {
+                                "architecture": "x86_64",
+                                "features": [],
+                                "vendor": "GenuineIntel",
+                            }
+                        },
                     },
                     "terms_and_conditions": "a5e9c41304c53cef9764c87e66f70e822934e2111ee0eb33a063102af8a06180",
                     "time": 1734453024.6,

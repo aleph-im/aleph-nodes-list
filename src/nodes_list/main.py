@@ -146,6 +146,20 @@ FAKE_GPU_AGGREGATE = {
     ],
 }
 
+
+def find_in_aggr(aggr, gpu_device_id):
+    vendor_id, device_id = gpu_device_id.split(":")
+    for compatible_gpu in aggr["compatible_standard_gpus"]:
+        if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["device_id"] == device_id:
+            return "compatible_standard_gpus"
+
+    for compatible_gpu in aggr["compatible_premium_gpus"]:
+        if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["device_id"] == device_id:
+            return "compatible_premium_gpus"
+
+    return None  # not found
+
+
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
 
@@ -308,12 +322,6 @@ class CRNData:
     def is_valid(self):
         return is_url_valid(self.node_url)
 
-    @property
-    def compatible_gpus(self):
-        return
-        # for gpu in self.system_data.
-        # FAKE_GPU_AGGREGATE
-
     async def fetch_config(self) -> None:
         try:
             fetched_info = await fetch_crn_config(self.node_url)
@@ -351,6 +359,42 @@ class CRNData:
     @property
     def qemu_support(self):
         return self.config and self.config["computing"].get("ENABLE_QEMU_SUPPORT")
+
+    @property
+    def compatible_gpus(self) -> list[dict]:
+        if not (self.system_data and "gpu" in self.system_data):
+            return []
+
+        devices: list[Any] = self.system_data["gpu"]["devices"]
+
+        aggr = self.get_gpu_aggregate()
+        for gpu in devices:
+            found = find_in_aggr(aggr, gpu["device_id"])
+            gpu["compatible"] = found or "not_compatible"
+        for gpu in devices:
+            found = find_in_aggr(aggr, gpu["device_id"])
+            gpu["compatible"] = found or "not_compatible"
+        return devices
+
+    @property
+    def compatible_available_gpus(self) -> list[dict]:
+        if not (self.system_data and "gpu" in self.system_data):
+            return []
+        d = self.system_data["gpu"]
+
+        devices: list[Any] = self.system_data["gpu"]["available_devices"]
+
+        aggr = self.get_gpu_aggregate()
+        for gpu in devices:
+            found = find_in_aggr(aggr, gpu["device_id"])
+            gpu["compatible"] = found or "not_compatible"
+        for gpu in devices:
+            found = find_in_aggr(aggr, gpu["device_id"])
+            gpu["compatible"] = found or "not_compatible"
+        return devices
+
+    def get_gpu_aggregate(self):
+        return FAKE_GPU_AGGREGATE
 
 
 app = fastapi.FastAPI(debug=True)
@@ -414,28 +458,32 @@ class DataCache:
 
             await crn_config.fetch_system()
 
-        crns = crns[:10]
+        # crns = crns[:10]
         futures = [retrieve_node_config(node) for node in crns]
         futures += [retrieve_system_info(node) for node in crns]
 
         await asyncio.gather(*futures)
 
-    def format_response(self):
+    def format_response(self, filter_inactive: bool):
         resp: dict[str, list[Any] | datetime.datetime | None]
         resp = {"last_refresh": self.node_list_fetched_at}
         crns_resp = []
         for crn in self.node_list["data"]["corechannel"]["resource_nodes"]:
+            if filter_inactive and crn["inactive_since"] is not None:
+                continue
             crn_hash = crn["hash"]
             crn_info = self.crn_infos[crn_hash]
             crn_resp = {
                 **crn,
                 "config_from_crn": crn_info.config is not None,
                 "debug_config_from_crn_at": crn_info.config_fetched_at,
-                "debug_config_from_crn_error": crn_info.error,
+                "debug_config_from_crn_error": str(crn_info.error),
                 "gpu_support": crn_info.gpu_support,
                 "confidential_support": crn_info.confidential_support,
                 "qemu_support": crn_info.qemu_support,
                 "system_usage": crn_info.system_data,
+                "compatible_gpus": crn_info.compatible_gpus,
+                "compatible_available_gpus": crn_info.compatible_available_gpus,
             }
             crns_resp.append(crn_resp)
 
@@ -452,9 +500,9 @@ def index() -> str:
 
 
 @app.get("/crns.json")
-async def root():
+async def root(filter_inactive: bool = False):
     await data_cache.ensure_fresh_data()
-    response = data_cache.format_response()
+    response = data_cache.format_response(filter_inactive=filter_inactive)
 
     return response
 

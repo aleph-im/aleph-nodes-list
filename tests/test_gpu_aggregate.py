@@ -1,5 +1,6 @@
 import json
 
+from nodes_list.main import find_in_aggr
 from nodes_list.response_types import CRNSystemInfo
 
 FAKE_GPU_AGGREGATE = """{
@@ -97,23 +98,11 @@ def test_returns_filtered_gpu():
     aggr = json.loads(FAKE_GPU_AGGREGATE)
     gpu_info = sys_info.get("gpu")
 
-    def find_in_aggr(gpu_device_id):
-        vendor_id, device_id = gpu_device_id.split(":")
-        for compatible_gpu in aggr["compatible_standard_gpus"]:
-            if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["device_id"] == device_id:
-                return "compatible_standard_gpus"
-
-        for compatible_gpu in aggr["compatible_premium_gpus"]:
-            if compatible_gpu["vendor_id"] == vendor_id and compatible_gpu["device_id"] == device_id:
-                return "compatible_premium_gpus"
-        # not found
-        return None
-
     for gpu in gpu_info["devices"]:
-        found = find_in_aggr(gpu["device_id"])
+        found = find_in_aggr(aggr, gpu["device_id"])
         gpu["compatible"] = found or "not_compatible"
     for gpu in gpu_info["available_devices"]:
-        found = find_in_aggr(gpu["device_id"])
+        found = find_in_aggr(aggr, gpu["device_id"])
         gpu["compatible"] = found or "not_compatible"
     assert gpu_info["devices"][0]["compatible"] == "compatible_standard_gpus"
     assert gpu_info["devices"][1]["compatible"] == "compatible_premium_gpus"
