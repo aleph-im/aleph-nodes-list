@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+#      - '*'
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatch
+
+      - name: Run linting
+        run: hatch run linting:all
+
+      - name: Run tests
+        run: hatch run testing:cov .
+
+      - name: Export coverage
+        run: hatch run testing:coverage html
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov
+
+#      - name: Load ethereum private key
+#        run: echo "deployment" | hatch run deployment:aleph account create --chain ETH --private-key ${{ secrets.ALEPH_ETH_PRIVATE_KEY }}
+#
+#      - name: Deploy on aleph.im
+#        run: echo "deployment" | hatch run deployment:deploy
