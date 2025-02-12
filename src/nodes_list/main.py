@@ -353,6 +353,8 @@ class DataCache:
             self.node_list.set_data(node_list)
         assert node_list
         crns = node_list["data"]["corechannel"]["resource_nodes"]
+        # sort by score
+        crns.sort(key=lambda crn: crn["score"], reverse=True)
 
         # crns = crns[:10]
         # self.node_list.data["data"]["corechannel"]["resource_nodes"] = crns = [
