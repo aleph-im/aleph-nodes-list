@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+import resource
 from collections import defaultdict
 from json import JSONDecodeError
 from pathlib import Path
@@ -47,6 +48,31 @@ FORBIDDEN_HOSTS = [
     "x.com",
     "youtube.com",
 ]
+
+app = fastapi.FastAPI(debug=True)
+
+# This is a  pure readonly API service without auth, allow all CORS so frontends can use it without restrictions
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Add a semaphore based on the limit of openable fd
+# This is used so we don't open too many connection in parallel which block due to too many fd.
+
+## Uncomment to Change limit for testing
+# resource.setrlimit(resource.RLIMIT_NOFILE, (1000, 1048576))
+# Get the system's open file descriptor limit
+soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+print(f"Soft limit: {soft_limit}, Hard limit: {hard_limit}")
+
+# Limit the number of concurrent open file descriptors
+MAX_CONCURRENT_FILES = min(soft_limit // 2, 100)  # Safety margin
+semaphore = asyncio.Semaphore(MAX_CONCURRENT_FILES)
+"Semaphore to limit conccurent connection to CRN as to not reach Too many open file errors"
 
 
 def find_in_aggr(aggr: SettingsAggregate, gpu_device_id) -> bool:
@@ -125,16 +151,17 @@ async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict:
     url = ""
     try:
         base_url: str = sanitize_url(node_url.rstrip("/"))
-        url = base_url + endpoint
-        timeout = aiohttp.ClientTimeout(total=30)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            logger.info(f"Fetching node information from {url}")
-            info: dict
-            async with session.get(url) as resp:
-                resp.raise_for_status()
-                info = await resp.json()  # type: ignore
-                logger.info(f"Received response from node {url}")
-                return info
+        async with semaphore:  # Ensures limited concurrency
+            url = base_url + endpoint
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                logger.debug(f"Fetching node information from {url}")
+                info: dict
+                async with session.get(url) as resp:
+                    resp.raise_for_status()
+                    info = await resp.json()  # type: ignore
+                    logger.info(f"Received response from node {url}")
+                    return info
     except aiohttp.InvalidURL as e:
         logger.info(f"Invalid CRN URL: {url}: {e}")
         raise
@@ -296,18 +323,6 @@ class CRNData:
         return compatible_gpu
 
 
-app = fastapi.FastAPI(debug=True)
-
-# This is a  pure readonly API service without auth, allow all CORS so frontends can use it without restrictions
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 class DataCache:
     node_list: CachedResponse[NodeAggregate]
     gpu_aggregate: CachedResponse[SettingsAggregate]
@@ -327,20 +342,23 @@ class DataCache:
         3. else return data directly
         """
         if self.node_list.is_older_than(seconds=60):
-            self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
-            done, pending = await asyncio.wait(
-                [self.refresh_task],
-                timeout=10,
-            )
-            logger.debug("done %s pending %s", done, pending)
-            if pending:
-                logger.info(
-                    "Returning data from cache,  continue fetch in background task %s",
-                    pending,
+            if not self.refresh_task or not self.refresh_task.done():
+                self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
+                done, pending = await asyncio.wait(
+                    [self.refresh_task],
+                    timeout=10,
                 )
+                logger.debug("done %s pending %s", done, pending)
+                if pending:
+                    logger.info(
+                        "Returning data from cache,  continue fetch in background task %s",
+                        pending,
+                    )
         elif self.node_list.is_older_than(seconds=31):
-            logger.info("Launching background refresh task")
-            self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
+            if not self.refresh_task or not self.refresh_task.done():
+                logger.info("Launching background refresh task")
+
+                self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
         else:
             logger.info("Getting data from cache")
         return self.node_list.data, self.crn_infos
@@ -425,9 +443,6 @@ class DataCache:
         return self.gpu_aggregate.data
 
 
-data_cache = DataCache()
-
-
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return (Path(__file__).parent / "templates/index.html").read_text()
@@ -452,6 +467,8 @@ async def debug_node_list():
 def debug_page() -> str:
     return (Path(__file__).parent / "templates/debug.html").read_text()
 
+
+data_cache = DataCache()
 
 logging.basicConfig(
     level=logging.INFO,
