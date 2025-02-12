@@ -133,6 +133,7 @@ async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict:
             async with session.get(url) as resp:
                 resp.raise_for_status()
                 info = await resp.json()  # type: ignore
+                logger.info(f"Received response from node {url}")
                 return info
     except aiohttp.InvalidURL as e:
         logger.info(f"Invalid CRN URL: {url}: {e}")
@@ -321,12 +322,22 @@ class DataCache:
     async def ensure_fresh_data(self) -> tuple[NodeAggregate | None, dict]:
         """Ensure we refresh the data and return it
 
-        1. if data is older than big threshold. Wait till we have refreshed the whole data set
+        1. if data is older than big threshold. Wait till we have refreshed the whole data set or max 10s
         2. if data is older than small threshold, launch cache refresh in background and use data already in cache
         3. else return data directly
         """
         if self.node_list.is_older_than(seconds=60):
-            await self.fetch_node_list_and_node_data()
+            self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
+            done, pending = await asyncio.wait(
+                [self.refresh_task],
+                timeout=10,
+            )
+            logger.debug("done %s pending %s", done, pending)
+            if pending:
+                logger.info(
+                    "Returning data from cache,  continue fetch in background task %s",
+                    pending,
+                )
         elif self.node_list.is_older_than(seconds=31):
             logger.info("Launching background refresh task")
             self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
@@ -336,6 +347,7 @@ class DataCache:
 
     async def fetch_node_list_and_node_data(self):
         """Retrieve the node list and data from each node"""
+        logger.info("fetch_node_list_and_node_data start")
         node_list = await _fetch_node_list()
         if node_list:
             self.node_list.set_data(node_list)
@@ -356,6 +368,7 @@ class DataCache:
             futures.append(crn_config.fetch_ipv6())
 
         await asyncio.gather(*futures)
+        logger.info("fetch_node_list_and_node_data end")
 
     async def format_response(self, filter_inactive: bool):
         resp: dict[str, list[Any] | datetime.datetime | None]
