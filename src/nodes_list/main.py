@@ -311,19 +311,14 @@ class DataCache:
     async def ensure_fresh_data(self) -> tuple[NodeAggregate | None, dict]:
         """Ensure we refresh the data and return it
 
-        1. if data is older than big threshold.
-        Wait till we have refreshed the whole data
-        2. if data is older than small threshold, launch refresh in background
-        and use cached data for now
+        1. if data is older than big threshold. Wait till we have refreshed the whole data set
+        2. if data is older than small threshold, launch cache refresh in background and use data already in cache
         3. else return data directly
         """
         if self.node_list.is_older_than(seconds=60):
             await self.fetch_node_list_and_node_data()
         elif self.node_list.is_older_than(seconds=31):
-            # If data is between 30 and 61 seconds old
-            # return the cached version but launch a refresh in background
             logger.info("Launching background refresh task")
-
             self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
         else:
             logger.info("Getting data from cache")
