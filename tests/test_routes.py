@@ -94,6 +94,7 @@ def test_mock_data(patch_datetime_now):
                     "name": "Andres test node instance",
                     "owner": "0xA07B1214bAe0D5ccAA25449C3149c0aC83658874",
                     "parent": None,
+                    "payment_receiver_address": "0xA07B1214bAe0D5ccAA25449C3149c0aC83658874",
                     "performance": 0.875798448016674,
                     "picture": "",
                     "qemu_support": True,

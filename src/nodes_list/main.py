@@ -365,25 +365,30 @@ class DataCache:
         if not self.node_list.data:
             return resp
         for crn in self.node_list.data["data"]["corechannel"]["resource_nodes"]:
-            if filter_inactive and crn["inactive_since"] is not None:
-                continue
-            crn_hash = crn["hash"]
-            crn_info = self.crn_infos[crn_hash]
-            crn_resp = {
-                **crn,
-                "config_from_crn": crn_info.config is not None,
-                "debug_config_from_crn_at": crn_info.config.fetched_at,
-                "debug_config_from_crn_error": str(crn_info.config.error),
-                "version": crn_info.config.data and crn_info.config.data["version"],
-                "gpu_support": crn_info.gpu_support,
-                "confidential_support": crn_info.confidential_support,
-                "qemu_support": crn_info.qemu_support,
-                "system_usage": crn_info.system.data,
-                "compatible_gpus": await crn_info.compatible_gpus,
-                "compatible_available_gpus": await crn_info.compatible_available_gpus,
-                "ipv6_check": crn_info.check_ipv6.data,
-            }
-            crns_resp.append(crn_resp)
+            try:
+                if filter_inactive and crn["inactive_since"] is not None:
+                    continue
+                crn_hash = crn["hash"]
+                crn_info = self.crn_infos[crn_hash]
+                crn_resp = {
+                    **crn,
+                    "config_from_crn": crn_info.config is not None,
+                    "debug_config_from_crn_at": crn_info.config.fetched_at,
+                    "debug_config_from_crn_error": str(crn_info.config.error),
+                    "version": crn_info.config.data and crn_info.config.data["version"],
+                    "payment_receiver_address": crn_info.config.data
+                    and crn_info.config.data["payment"]["PAYMENT_RECEIVER_ADDRESS"],
+                    "gpu_support": crn_info.gpu_support,
+                    "confidential_support": crn_info.confidential_support,
+                    "qemu_support": crn_info.qemu_support,
+                    "system_usage": crn_info.system.data,
+                    "compatible_gpus": await crn_info.compatible_gpus,
+                    "compatible_available_gpus": await crn_info.compatible_available_gpus,
+                    "ipv6_check": crn_info.check_ipv6.data,
+                }
+                crns_resp.append(crn_resp)
+            except Exception as e:
+                logger.error("Error formatting crn %s: %s", crn.get("hash"), e)
 
         return resp
 
