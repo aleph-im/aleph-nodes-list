@@ -70,15 +70,15 @@ all = [
     "typing"
 ]
 
-#[tool.hatch.envs.deployment]
-#detached = true
-#dependencies = [
-#  "aleph-client==1.3.0",
-#  "aleph-sdk-python==1.2.1",
-#]
-#[tool.hatch.envs.deployment.scripts]
-#deploy = "python ./deploy.py"
-#update = "aleph program update aleph program update $ITEM_HASH nodes_list:app"
+[tool.hatch.envs.deployment]
+detached = true
+dependencies = [
+  "aleph-client==1.3.0",
+  "aleph-sdk-python==1.2.1",
+]
+[tool.hatch.envs.deployment.scripts]
+deploy = "python ./deploy.py"
+update = "aleph program update aleph program update $ITEM_HASH nodes_list:app"
 
 [tool.mypy]
 python_version = "3.12"

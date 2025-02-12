@@ -14,29 +14,30 @@ Use it to explore the available endpoints.
 ```shell
 pip install hatch
 cd src
-hatch run uvicorn nodes_list:app --reload
+hatch run uvicorn nodes_list.main:app --reload
 ````
 
 ### Testing
 
-Test the code quality using `mypy`, `black`, `isort` and `ruff`:
+Test the code quality using `mypy`:
 ```shell
 hatch run linting:all
 ```
 
-Reformat the code using `black`, `isort` and `ruff`:
+Reformat the code using `ruff`:
 ```shell
-hatch run linting -f
+hatch fmt --formatter
 ```
 
 Run the tests:
 ```shell
-hatch run testing:test .
+hatch run testing:test
 ```
 
 Export the coverage in HTML:
 ```shell
-hatch run testing:coverage html```
+hatch run testing:coverage html
+```
 
 
 ## Deployment
