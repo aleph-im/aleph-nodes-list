@@ -10,6 +10,7 @@ from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 import fastapi
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from nodes_list.response_types import (
@@ -295,6 +296,15 @@ class CRNData:
 
 
 app = fastapi.FastAPI(debug=True)
+
+# This is a  pure readonly API service without auth, allow all CORS so frontends can use it without restrictions
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class DataCache:
