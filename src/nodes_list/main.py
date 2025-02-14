@@ -342,7 +342,7 @@ class DataCache:
         3. else return data directly
         """
         if self.node_list.is_older_than(seconds=60):
-            if not self.refresh_task or not self.refresh_task.done():
+            if not self.refresh_task or self.refresh_task.done():
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
                 done, pending = await asyncio.wait(
                     [self.refresh_task],
@@ -355,7 +355,7 @@ class DataCache:
                         pending,
                     )
         elif self.node_list.is_older_than(seconds=31):
-            if not self.refresh_task or not self.refresh_task.done():
+            if not self.refresh_task or self.refresh_task.done():
                 logger.info("Launching background refresh task")
 
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
