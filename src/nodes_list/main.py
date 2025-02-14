@@ -342,7 +342,7 @@ class DataCache:
         3. else return data directly
         """
         if self.node_list.is_older_than(seconds=60):
-            if not self.refresh_task or self.refresh_task.done():
+            if not self.refresh_task_is_running():
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
                 done, pending = await asyncio.wait(
                     [self.refresh_task],
@@ -351,21 +351,23 @@ class DataCache:
                 logger.debug("done %s pending %s", done, pending)
                 if pending:
                     logger.info(
-                        "Returning data from cache,  continue fetch in background task %s",
+                        "Returning data from cache, continue fetch in background task %s",
                         pending,
                     )
         elif self.node_list.is_older_than(seconds=31):
-            if not self.refresh_task or self.refresh_task.done():
+            if not self.refresh_task_is_running():
                 logger.info("Launching background refresh task")
-
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
         else:
             logger.info("Getting data from cache")
         return self.node_list.data, self.crn_infos
 
+    def refresh_task_is_running(self):
+        return self.refresh_task and not self.refresh_task.done()
+
     async def fetch_node_list_and_node_data(self):
         """Retrieve the node list and data from each node"""
-        logger.info("fetch_node_list_and_node_data start")
+        logger.info("%s , fetch_node_list_and_node_data start", asyncio.current_task())
         node_list = await _fetch_node_list()
         if node_list:
             self.node_list.set_data(node_list)
@@ -388,7 +390,7 @@ class DataCache:
             futures.append(crn_config.fetch_ipv6())
 
         await asyncio.gather(*futures)
-        logger.info("fetch_node_list_and_node_data end")
+        logger.info("%s , fetch_node_list_and_node_data end", asyncio.current_task())
 
     async def format_response(self, filter_inactive: bool):
         resp: dict[str, list[Any] | datetime.datetime | None]
