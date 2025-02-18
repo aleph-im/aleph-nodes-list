@@ -465,6 +465,17 @@ async def debug_node_list():
     return data
 
 
+@app.get("/debug/task")
+async def debug_task():
+    """Debug"""
+    data = {
+        "task": str(data_cache.refresh_task),
+        "task_is_done": str(data_cache.refresh_task.done() if data_cache.refresh_task else None),
+        "task_is_cancelled": str(data_cache.refresh_task.cancelled() if data_cache.refresh_task else None),
+    }
+    return data
+
+
 @app.get("/debug.html", response_class=HTMLResponse)
 def debug_page() -> str:
     return (Path(__file__).parent / "templates/debug.html").read_text()
