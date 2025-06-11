@@ -483,7 +483,7 @@ async def root(filter_inactive: bool = False):
 async def debug_node_aggregate():
     """Raw data"""
     await data_cache.fetch_node_list_and_node_data()
-    return self.node_list
+    return data_cache.node_list
 
 
 @app.get("/debug/node")
