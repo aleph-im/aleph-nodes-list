@@ -361,16 +361,17 @@ class DataCache:
                 self.refresh_task = asyncio.create_task(
                     self.fetch_node_list_and_node_data()
                 )
-                done, pending = await asyncio.wait(
-                    [self.refresh_task],
-                    timeout=10,
+
+            done, pending = await asyncio.wait(
+                [self.refresh_task],
+                timeout=10,
+            )
+            logger.debug("done %s pending %s", done, pending)
+            if pending:
+                logger.info(
+                    "Returning data from cache, continue fetch in background task %s",
+                    pending,
                 )
-                logger.debug("done %s pending %s", done, pending)
-                if pending:
-                    logger.info(
-                        "Returning data from cache, continue fetch in background task %s",
-                        pending,
-                    )
         elif self.node_list.is_older_than(seconds=31):
             if not self.refresh_task_is_running():
                 logger.info("Launching background refresh task")
