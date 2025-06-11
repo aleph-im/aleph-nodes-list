@@ -356,7 +356,7 @@ class DataCache:
         2. if data is older than small threshold, launch cache refresh in background and use data already in cache
         3. else return data directly
         """
-        if self.node_list.is_older_than(seconds=60):
+        if self.node_list.is_older_than(seconds=120):
             if not self.refresh_task_is_running():
                 self.refresh_task = asyncio.create_task(
                     self.fetch_node_list_and_node_data()
