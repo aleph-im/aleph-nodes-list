@@ -162,7 +162,7 @@ async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict:
                 async with session.get(url) as resp:
                     resp.raise_for_status()
                     info = await resp.json()  # type: ignore
-                    logger.info(f"Received response from node {url}")
+                    logger.debug(f"Received response from node {url}")
                     return info
     except aiohttp.InvalidURL as e:
         logger.info(f"Invalid CRN URL: {url}: {e}")
