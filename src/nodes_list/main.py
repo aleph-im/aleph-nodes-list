@@ -24,7 +24,8 @@ from nodes_list.response_types import (
 
 logger = logging.getLogger(__name__)
 
-API_HOST = "https://api2.aleph.im"
+# API_HOST = "https://api2.aleph.im"
+API_HOST = "https://official.aleph.cloud"
 SETTING_AGGREGATE_URL = (
     API_HOST.rstrip("/")
     + "/api/v0/aggregates/0xA07B1214bAe0D5ccAA25449C3149c0aC83658874.json?keys=settings"
