@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 API_HOST = "https://official.aleph.cloud"
 SETTING_AGGREGATE_URL = (
     API_HOST.rstrip("/")
-    + "/api/v0/aggregates/0xA07B1214bAe0D5ccAA25449C3149c0aC83658874.json?keys=settings"
+    + "/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
 )
 
 PATH_STATUS_CONFIG = "/status/config"
