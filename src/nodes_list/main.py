@@ -19,7 +19,6 @@ from nodes_list.response_types import (
     CRNSystemInfo,
     NodeAggregate,
     SettingsAggregate,
-    CheckIPv6,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,8 +26,7 @@ logger = logging.getLogger(__name__)
 # API_HOST = "https://api2.aleph.im"
 API_HOST = "https://official.aleph.cloud"
 SETTING_AGGREGATE_URL = (
-    API_HOST.rstrip("/")
-    + "/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
+    API_HOST.rstrip("/") + "/api/v0/aggregates/0xFba561a84A537fCaa567bb7A2257e7142701ae2A.json?keys=settings"
 )
 
 PATH_STATUS_CONFIG = "/status/config"
@@ -235,8 +233,7 @@ class CachedResponse(Generic[T]):
     def is_older_than(self, **timedelta_args) -> bool:
         return self.data is None or (
             self.fetched_at is not None
-            and datetime.datetime.now(datetime.UTC) - self.fetched_at
-            > datetime.timedelta(**timedelta_args)
+            and datetime.datetime.now(datetime.UTC) - self.fetched_at > datetime.timedelta(**timedelta_args)
         )
 
 
@@ -273,9 +270,7 @@ class CRNData:
 
     async def fetch_ipv6(self) -> None:
         try:
-            fetched_info: CheckIPv6 = await fetch_crn_endpoint(
-                self.node_url, PATH_IPv6_CHECK
-            )  # type: ignore
+            fetched_info: CheckIPv6 = await fetch_crn_endpoint(self.node_url, PATH_IPv6_CHECK)  # type: ignore
             self.check_ipv6.set_data(fetched_info)
         except Exception as e:
             self.check_ipv6.set_error(e)
@@ -289,21 +284,15 @@ class CRNData:
 
     @property
     def gpu_support(self):
-        return self.config.data and self.config.data["computing"].get(
-            "ENABLE_GPU_SUPPORT"
-        )
+        return self.config.data and self.config.data["computing"].get("ENABLE_GPU_SUPPORT")
 
     @property
     def confidential_support(self):
-        return self.config.data and self.config.data["computing"].get(
-            "ENABLE_CONFIDENTIAL_COMPUTING"
-        )
+        return self.config.data and self.config.data["computing"].get("ENABLE_CONFIDENTIAL_COMPUTING")
 
     @property
     def qemu_support(self):
-        return self.config.data and self.config.data["computing"].get(
-            "ENABLE_QEMU_SUPPORT"
-        )
+        return self.config.data and self.config.data["computing"].get("ENABLE_QEMU_SUPPORT")
 
     @property
     async def compatible_gpus(self) -> list[dict]:
@@ -316,9 +305,7 @@ class CRNData:
         if not aggr:
             logger.error("No settings aggregate, cannot filter devices.")
             return []
-        compatible_gpu = [
-            gpu for gpu in devices if find_in_aggr(aggr, gpu["device_id"])
-        ]
+        compatible_gpu = [gpu for gpu in devices if find_in_aggr(aggr, gpu["device_id"])]
         return compatible_gpu
 
     @property
@@ -332,9 +319,7 @@ class CRNData:
         if not aggr:
             logger.error("No settings aggregate, cannot filter devices.")
             return []
-        compatible_gpu = [
-            gpu for gpu in devices if find_in_aggr(aggr, gpu["device_id"])
-        ]
+        compatible_gpu = [gpu for gpu in devices if find_in_aggr(aggr, gpu["device_id"])]
         return compatible_gpu
 
 
@@ -358,9 +343,7 @@ class DataCache:
         """
         if self.node_list.is_older_than(seconds=120):
             if not self.refresh_task_is_running():
-                self.refresh_task = asyncio.create_task(
-                    self.fetch_node_list_and_node_data()
-                )
+                self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
 
             done, pending = await asyncio.wait(
                 [self.refresh_task],
@@ -375,9 +358,7 @@ class DataCache:
         elif self.node_list.is_older_than(seconds=31):
             if not self.refresh_task_is_running():
                 logger.info("Launching background refresh task")
-                self.refresh_task = asyncio.create_task(
-                    self.fetch_node_list_and_node_data()
-                )
+                self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
         else:
             logger.info("Getting data from cache")
         return self.node_list.data, self.crn_infos
@@ -499,12 +480,8 @@ async def debug_task():
     """Debug"""
     data = {
         "task": str(data_cache.refresh_task),
-        "task_is_done": str(
-            data_cache.refresh_task.done() if data_cache.refresh_task else None
-        ),
-        "task_is_cancelled": str(
-            data_cache.refresh_task.cancelled() if data_cache.refresh_task else None
-        ),
+        "task_is_done": str(data_cache.refresh_task.done() if data_cache.refresh_task else None),
+        "task_is_cancelled": str(data_cache.refresh_task.cancelled() if data_cache.refresh_task else None),
     }
     return data
 
