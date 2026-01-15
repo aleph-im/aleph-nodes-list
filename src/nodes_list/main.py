@@ -31,7 +31,7 @@ SETTING_AGGREGATE_URL = (
 
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
-PATH_IPv6_CHECK = "/vm/51bc3b45db8a91f3753f567159c4cf2432e794fb28e7c02204ddee6f62e59cca/ip/6"
+PATH_IPv6_CHECK = "/vm/d2b74aa29898457bde0560e47f7cdd4e77287e9f1f7a1456161d2fd7d5c855d7/ip/6"
 
 # Some users had fun adding URLs that are obviously not CRNs.
 # If you work for one of these companies, please send a large check to the Aleph team,
