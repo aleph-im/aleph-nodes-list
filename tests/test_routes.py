@@ -73,7 +73,7 @@ def test_mock_data(patch_datetime_now):
                         {
                             "device_class": "0300",
                             "device_id": "10de:27b0",
-                            "device_name": "AD104GL [RTX 4000 SFF Ada " "Generation]",
+                            "device_name": "AD104GL [RTX 4000 SFF Ada Generation]",
                             "pci_host": "01:00.0",
                             "vendor": "NVIDIA",
                         }
@@ -122,7 +122,7 @@ def test_mock_data(patch_datetime_now):
                                 {
                                     "device_class": "0300",
                                     "device_id": "10de:27b0",
-                                    "device_name": "AD104GL [RTX " "4000 SFF Ada " "Generation]",
+                                    "device_name": "AD104GL [RTX 4000 SFF Ada Generation]",
                                     "pci_host": "01:00.0",
                                     "vendor": "NVIDIA",
                                 }
