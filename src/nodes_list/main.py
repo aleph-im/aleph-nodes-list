@@ -15,7 +15,7 @@ from packaging import version
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from nodes_list.response_types import (
+from .response_types import (
     CrnConfig,
     CRNSystemInfo,
     NodeAggregate,
@@ -285,7 +285,7 @@ class CRNData:
 
             response = CheckIPv6(
                 host=True,  # No timeout so it's should be valid
-                vm=result,
+                vm=bool(result),
             )
             self.check_ipv6.set_data(response)
         except Exception as e:
