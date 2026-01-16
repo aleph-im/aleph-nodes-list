@@ -374,6 +374,7 @@ class DataCache:
             if not self.refresh_task_is_running():
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
 
+            assert self.refresh_task is not None
             done, pending = await asyncio.wait(
                 [self.refresh_task],
                 timeout=10,
