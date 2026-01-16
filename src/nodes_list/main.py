@@ -11,10 +11,11 @@ from urllib.parse import ParseResult, urlparse
 
 import aiohttp
 import fastapi
+from packaging import version
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from nodes_list.response_types import (
+from .response_types import (
     CrnConfig,
     CRNSystemInfo,
     NodeAggregate,
@@ -32,7 +33,8 @@ SETTING_AGGREGATE_URL = (
 
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
-PATH_IPv6_CHECK = "/vm/d2b74aa29898457bde0560e47f7cdd4e77287e9f1f7a1456161d2fd7d5c855d7/ip/6"
+CRN_PATH_IPv6_CHECK = "/status/check/ipv6"
+DIAG_VM_PATH_IPv6_CHECK = "/vm/d2b74aa29898457bde0560e47f7cdd4e77287e9f1f7a1456161d2fd7d5c855d7/ip/6"
 
 # Some users had fun adding URLs that are obviously not CRNs.
 # If you work for one of these companies, please send a large check to the Aleph team,
@@ -271,10 +273,36 @@ class CRNData:
 
     async def fetch_ipv6(self) -> None:
         try:
-            fetched_info: CheckIPv6 = await fetch_crn_endpoint(self.node_url, PATH_IPv6_CHECK)  # type: ignore
+            fetched_info: CheckIPv6 = await fetch_crn_endpoint(self.node_url, CRN_PATH_IPv6_CHECK)  # type: ignore
             self.check_ipv6.set_data(fetched_info)
         except Exception as e:
             self.check_ipv6.set_error(e)
+
+    async def fetch_ipv6_from_diag(self) -> None:
+        try:
+            fetched_info: dict = await fetch_crn_endpoint(self.node_url, DIAG_VM_PATH_IPv6_CHECK)  # type: ignore
+            result = fetched_info.get("result")
+
+            response = CheckIPv6(
+                host=True,  # No timeout so it's should be valid
+                vm=bool(result),
+            )
+            self.check_ipv6.set_data(response)
+        except Exception as e:
+            self.check_ipv6.set_error(e)
+
+    def get_ipv6_fetch_method(self):
+        """Select IPv6 fetch method based on cached version."""
+        if not self.config.data or not self.config.data.get("version"):
+            return self.fetch_ipv6_from_diag  # No cache, use diag VM
+
+        try:
+            ver = version.parse(self.config.data["version"])
+            if ver <= version.parse("1.8.1"):
+                return self.fetch_ipv6_from_diag
+            return self.fetch_ipv6
+        except:
+            return self.fetch_ipv6_from_diag  # Parse error, safe default
 
     async def fetch_system(self) -> None:
         try:
@@ -346,6 +374,7 @@ class DataCache:
             if not self.refresh_task_is_running():
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
 
+            assert self.refresh_task is not None
             done, pending = await asyncio.wait(
                 [self.refresh_task],
                 timeout=10,
@@ -389,7 +418,7 @@ class DataCache:
             crn_config.node_url = node["address"]
             futures.append(crn_config.fetch_system())
             futures.append(crn_config.fetch_config())
-            futures.append(crn_config.fetch_ipv6())
+            futures.append(crn_config.get_ipv6_fetch_method()())
 
         await asyncio.gather(*futures)
         logger.info("%s , fetch_node_list_and_node_data end", asyncio.current_task())
@@ -423,7 +452,9 @@ class DataCache:
                     "system_usage": crn_info.system.data,
                     "compatible_gpus": await crn_info.compatible_gpus,
                     "compatible_available_gpus": await crn_info.compatible_available_gpus,
-                    "ipv6_check": crn_info.check_ipv6.data,
+                    "ipv6_check": crn_info.check_ipv6.data
+                    if crn_info.check_ipv6.data is not None
+                    else CheckIPv6(host=False, vm=False),
                 }
                 crns_resp.append(crn_resp)
             except Exception as e:
