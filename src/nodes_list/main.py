@@ -281,11 +281,11 @@ class CRNData:
     async def fetch_ipv6_from_diag(self) -> None:
         try:
             fetched_info: dict = await fetch_crn_endpoint(self.node_url, DIAG_VM_PATH_IPv6_CHECK)  # type: ignore
-            result = fetched_info.get('result')
+            result = fetched_info.get("result")
 
             response = CheckIPv6(
-                host=True, # No timeout so it's should be valid
-                vm=result
+                host=True,  # No timeout so it's should be valid
+                vm=result,
             )
             self.check_ipv6.set_data(response)
         except Exception as e:
@@ -451,7 +451,9 @@ class DataCache:
                     "system_usage": crn_info.system.data,
                     "compatible_gpus": await crn_info.compatible_gpus,
                     "compatible_available_gpus": await crn_info.compatible_available_gpus,
-                    "ipv6_check": crn_info.check_ipv6.data if crn_info.check_ipv6.data is not None else CheckIPv6(host=False, vm=False),
+                    "ipv6_check": crn_info.check_ipv6.data
+                    if crn_info.check_ipv6.data is not None
+                    else CheckIPv6(host=False, vm=False),
                 }
                 crns_resp.append(crn_resp)
             except Exception as e:
