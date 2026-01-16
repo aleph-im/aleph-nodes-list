@@ -19,6 +19,7 @@ from nodes_list.response_types import (
     CRNSystemInfo,
     NodeAggregate,
     SettingsAggregate,
+    CheckIPv6,
 )
 
 logger = logging.getLogger(__name__)
