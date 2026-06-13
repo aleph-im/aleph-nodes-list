@@ -83,6 +83,7 @@ MAX_CONCURRENT_CONNECTIONS = min(soft_limit // 2, 100)  # Safety margin
 # Single shared client session so connections are pooled and reused across requests
 # instead of paying a TCP + TLS handshake for every call to every node.
 _session: aiohttp.ClientSession | None = None
+_session_loop: asyncio.AbstractEventLoop | None = None
 
 
 def get_session() -> aiohttp.ClientSession:
@@ -92,9 +93,15 @@ def get_session() -> aiohttp.ClientSession:
     reused instead of opening a new session (and handshake) per request. The
     connector's ``limit`` bounds total concurrency, replacing the previous
     semaphore.
+
+    A session is bound to the event loop it was created on, so it is recreated
+    when the running loop changes. In production there is a single long-lived
+    loop, so one session is reused; the guard only matters for test harnesses
+    that spin up a fresh loop per test.
     """
-    global _session
-    if _session is None or _session.closed:
+    global _session, _session_loop
+    loop = asyncio.get_running_loop()
+    if _session is None or _session.closed or _session_loop is not loop:
         connector = aiohttp.TCPConnector(
             limit=MAX_CONCURRENT_CONNECTIONS,
             limit_per_host=8,
@@ -104,6 +111,7 @@ def get_session() -> aiohttp.ClientSession:
             connector=connector,
             timeout=aiohttp.ClientTimeout(total=30),
         )
+        _session_loop = loop
     return _session
 
 
