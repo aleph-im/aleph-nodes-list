@@ -387,16 +387,26 @@ class CRNData:
         return compatible_gpu
 
 
+def _log_task_exception(task: asyncio.Task) -> None:
+    """Log exceptions from a background task so they are not silently swallowed."""
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.error("Background refresh task failed: %s", exc, exc_info=exc)
+
+
 class DataCache:
     node_list: CachedResponse[NodeAggregate]
     gpu_aggregate: CachedResponse[SettingsAggregate]
-    crn_infos: defaultdict[str, CRNData] = defaultdict(CRNData)
+    crn_infos: defaultdict[str, CRNData]
 
     refresh_task: asyncio.Task | None = None
 
     def __init__(self):
         self.gpu_aggregate = CachedResponse()
         self.node_list = CachedResponse()
+        self.crn_infos = defaultdict(CRNData)
 
     async def ensure_fresh_data(self) -> tuple[NodeAggregate | None, dict]:
         """Ensure we refresh the data and return it
@@ -408,6 +418,7 @@ class DataCache:
         if self.node_list.is_older_than(seconds=120):
             if not self.refresh_task_is_running():
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
+                self.refresh_task.add_done_callback(_log_task_exception)
 
             assert self.refresh_task is not None
             done, pending = await asyncio.wait(
@@ -424,6 +435,7 @@ class DataCache:
             if not self.refresh_task_is_running():
                 logger.info("Launching background refresh task")
                 self.refresh_task = asyncio.create_task(self.fetch_node_list_and_node_data())
+                self.refresh_task.add_done_callback(_log_task_exception)
         else:
             logger.info("Getting data from cache")
         return self.node_list.data, self.crn_infos
@@ -435,17 +447,14 @@ class DataCache:
         """Retrieve the node list and data from each node"""
         logger.info("%s , fetch_node_list_and_node_data start", asyncio.current_task())
         node_list = await _fetch_node_list()
-        if node_list:
-            self.node_list.set_data(node_list)
-        assert node_list
+        if not node_list:
+            logger.error("Node list fetch returned no data, keeping previously cached data")
+            return
+        self.node_list.set_data(node_list)
         crns = node_list["data"]["corechannel"]["resource_nodes"]
         # sort by score
         crns.sort(key=lambda crn: crn["score"], reverse=True)
 
-        # crns = crns[:10]
-        # self.node_list.data["data"]["corechannel"]["resource_nodes"] = crns = [
-        #     crn for crn in crns if "nerg" in crn["address"]
-        # ]
         futures = []
         for node in crns:
             crn_hash = node["hash"]
@@ -473,11 +482,11 @@ class DataCache:
                 crn_info = self.crn_infos[crn_hash]
                 crn_resp = {
                     **crn,
-                    "config_from_crn": crn_info.config is not None,
+                    "config_from_crn": crn_info.config.data is not None,
                     "debug_config_from_crn_at": crn_info.config.fetched_at,
                     "debug_config_from_crn_error": str(crn_info.config.error),
-                    "debug_usage_from_crn_at": crn_info.config.fetched_at,
-                    "usage_from_crn_error": str(crn_info.config.error),
+                    "debug_usage_from_crn_at": crn_info.system.fetched_at,
+                    "usage_from_crn_error": str(crn_info.system.error),
                     "version": crn_info.config.data and crn_info.config.data["version"],
                     "payment_receiver_address": crn_info.config.data
                     and crn_info.config.data["payment"]["PAYMENT_RECEIVER_ADDRESS"],
