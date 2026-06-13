@@ -4,14 +4,13 @@ import pytest
 from aioresponses import aioresponses
 from fastapi.testclient import TestClient
 from nodes_list import main
-from nodes_list.main import app, SETTING_AGGREGATE_URL
+from nodes_list.main import app, SETTING_AGGREGATE_URL, DIAG_VM_PATH_IPv6_CHECK
 from .test_gpu_aggregate import FAKE_GPU_AGGREGATE
 
 from .test_parse_responses import (
     mock_node_aggr,
     mock_status_config,
     mock_usage_system,
-    mock_ipv6_check,
 )
 
 client = TestClient(app)
@@ -49,7 +48,7 @@ def test_mock_data(patch_datetime_now):
     with aioresponses() as mock_responses:
         main.data_cache = main.DataCache()
         mock_responses.get(
-            "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
+            "https://official.aleph.cloud/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
             body=mock_node_aggr,
         )
         mock_responses.get(
@@ -58,7 +57,11 @@ def test_mock_data(patch_datetime_now):
         )
         mock_responses.get("https://gpu-test-02.nergame.app/about/usage/system", body=mock_usage_system)
         mock_responses.get("https://gpu-test-02.nergame.app/status/config", body=mock_status_config)
-        mock_responses.get("https://gpu-test-02.nergame.app/status/check/ipv6", body=mock_ipv6_check)
+        # Node version 1.3.0 is <= 1.8.1, so the code probes IPv6 via the diag VM endpoint.
+        mock_responses.get(
+            "https://gpu-test-02.nergame.app" + DIAG_VM_PATH_IPv6_CHECK,
+            payload={"result": True},
+        )
         "Basic check that the endpoint don't crash"
         response = client.get("/crns.json")
         assert response.status_code == 200
@@ -82,6 +85,8 @@ def test_mock_data(patch_datetime_now):
                     "config_from_crn": True,
                     "debug_config_from_crn_at": "2020-12-25T17:05:55+00:00",
                     "debug_config_from_crn_error": "None",
+                    "debug_usage_from_crn_at": "2020-12-25T17:05:55+00:00",
+                    "usage_from_crn_error": "None",
                     "decentralization": 0.8393111079955136,
                     "description": "This is a test CRN, please don't use it",
                     "gpu_support": True,

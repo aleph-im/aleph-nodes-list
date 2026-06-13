@@ -151,7 +151,7 @@ mock_ipv6_check = """{"host": true, "vm": true}"""
 async def test_fetch_node_list():
     with aioresponses() as mock_responses:
         mock_responses.get(
-            "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
+            "https://official.aleph.cloud/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
             body=mock_node_aggr,
         )
         await _fetch_node_list()
@@ -161,7 +161,7 @@ async def test_fetch_node_list():
 async def test_fetch_node_data():
     with aioresponses() as mock_responses:
         mock_responses.get(
-            "https://api2.aleph.im/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
+            "https://official.aleph.cloud/api/v0/aggregates/0xa1B3bb7d2332383D96b7796B908fB7f7F3c2Be10.json?keys=corechannel",
             body=mock_node_aggr,
         )
         mock_responses.get("https://gpu-test-02.nergame.app/about/usage/system", body=mock_usage_system)
