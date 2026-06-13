@@ -3,6 +3,7 @@ import datetime
 import logging
 import resource
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,7 @@ SETTING_AGGREGATE_URL = (
 PATH_STATUS_CONFIG = "/status/config"
 PATH_ABOUT_USAGE_SYSTEM = "/about/usage/system"
 CRN_PATH_IPv6_CHECK = "/status/check/ipv6"
-DIAG_VM_PATH_IPv6_CHECK = "/vm/d2b74aa29898457bde0560e47f7cdd4e77287e9f1f7a1456161d2fd7d5c855d7/ip/6"
+DIAG_VM_PATH_IPv6_CHECK = "/vm/5a3081a97c62c8aba7e81005bfda0489dd93ba1601985e3f2dff2d906ff3ea9b/ip/6"
 
 # Some users had fun adding URLs that are obviously not CRNs.
 # If you work for one of these companies, please send a large check to the Aleph team,
@@ -52,7 +53,17 @@ FORBIDDEN_HOSTS = [
     "youtube.com",
 ]
 
-app = fastapi.FastAPI(debug=True)
+
+@asynccontextmanager
+async def lifespan(app: fastapi.FastAPI):
+    yield
+    global _session
+    if _session is not None and not _session.closed:
+        await _session.close()
+        _session = None
+
+
+app = fastapi.FastAPI(debug=True, lifespan=lifespan)
 
 # This is a  pure readonly API service without auth, allow all CORS so frontends can use it without restrictions
 app.add_middleware(
@@ -63,19 +74,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add a semaphore based on the limit of openable fd
-# This is used so we don't open too many connection in parallel which block due to too many fd.
-
-## Uncomment to Change limit for testing
-# resource.setrlimit(resource.RLIMIT_NOFILE, (1000, 1048576))
-# Get the system's open file descriptor limit
+# Bound the number of concurrent connections based on the open file descriptor limit
+# so we don't reach "Too many open files" errors when fanning out to every CRN.
 soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
-print(f"Soft limit: {soft_limit}, Hard limit: {hard_limit}")
+logger.info("File descriptor limits: soft=%s, hard=%s", soft_limit, hard_limit)
+MAX_CONCURRENT_CONNECTIONS = min(soft_limit // 2, 100)  # Safety margin
 
-# Limit the number of concurrent open file descriptors
-MAX_CONCURRENT_FILES = min(soft_limit // 2, 100)  # Safety margin
-semaphore = asyncio.Semaphore(MAX_CONCURRENT_FILES)
-"Semaphore to limit conccurent connection to CRN as to not reach Too many open file errors"
+# Single shared client session so connections are pooled and reused across requests
+# instead of paying a TCP + TLS handshake for every call to every node.
+_session: aiohttp.ClientSession | None = None
+_session_loop: asyncio.AbstractEventLoop | None = None
+
+
+def get_session() -> aiohttp.ClientSession:
+    """Return the shared client session, creating it on first use.
+
+    Pools connections across all CRN requests so keep-alive connections are
+    reused instead of opening a new session (and handshake) per request. The
+    connector's ``limit`` bounds total concurrency, replacing the previous
+    semaphore.
+
+    A session is bound to the event loop it was created on, so it is recreated
+    when the running loop changes. In production there is a single long-lived
+    loop, so one session is reused; the guard only matters for test harnesses
+    that spin up a fresh loop per test.
+    """
+    global _session, _session_loop
+    loop = asyncio.get_running_loop()
+    if _session is None or _session.closed or _session_loop is not loop:
+        connector = aiohttp.TCPConnector(
+            limit=MAX_CONCURRENT_CONNECTIONS,
+            limit_per_host=8,
+            ttl_dns_cache=300,
+        )
+        _session = aiohttp.ClientSession(
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=30),
+        )
+        _session_loop = loop
+    return _session
 
 
 def find_in_aggr(aggr: SettingsAggregate, gpu_device_id) -> bool:
@@ -131,14 +168,14 @@ async def _fetch_node_list() -> NodeAggregate | None:
     node_link = API_HOST.rstrip("/") + aggregate_endpoint
     logger.info("Fetching node list from %s", node_link)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(node_link) as resp:
-            if resp.status != 200:
-                logger.error("Unable to fetch node information")
-                return None
+    session = get_session()
+    async with session.get(node_link) as resp:
+        if resp.status != 200:
+            logger.error("Unable to fetch node information")
+            return None
 
-            data = await resp.json()
-            return data
+        data = await resp.json()
+        return data
 
 
 async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict:
@@ -154,17 +191,15 @@ async def fetch_crn_endpoint(node_url: str, endpoint: str) -> dict:
     url = ""
     try:
         base_url: str = sanitize_url(node_url.rstrip("/"))
-        async with semaphore:  # Ensures limited concurrency
-            url = base_url + endpoint
-            timeout = aiohttp.ClientTimeout(total=30)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                logger.debug(f"Fetching node information from {url}")
-                info: dict
-                async with session.get(url) as resp:
-                    resp.raise_for_status()
-                    info = await resp.json()  # type: ignore
-                    logger.debug(f"Received response from node {url}")
-                    return info
+        url = base_url + endpoint
+        session = get_session()
+        logger.debug(f"Fetching node information from {url}")
+        info: dict
+        async with session.get(url) as resp:
+            resp.raise_for_status()
+            info = await resp.json()  # type: ignore
+            logger.debug(f"Received response from node {url}")
+            return info
     except aiohttp.InvalidURL as e:
         logger.info(f"Invalid CRN URL: {url}: {e}")
         raise
@@ -464,10 +499,9 @@ class DataCache:
 
     async def fetch_gpu_aggregate(self):
         try:
-            async with aiohttp.ClientSession() as session:
-                resp = await session.get(SETTING_AGGREGATE_URL)
+            session = get_session()
+            async with session.get(SETTING_AGGREGATE_URL) as resp:
                 resp.raise_for_status()
-
                 data = await resp.json()
                 self.gpu_aggregate.set_data(data)
         except Exception as e:
@@ -480,9 +514,14 @@ class DataCache:
         return self.gpu_aggregate.data
 
 
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+INDEX_HTML = (TEMPLATES_DIR / "index.html").read_text()
+DEBUG_HTML = (TEMPLATES_DIR / "debug.html").read_text()
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return (Path(__file__).parent / "templates/index.html").read_text()
+    return INDEX_HTML
 
 
 @app.get("/crns.json")
@@ -520,7 +559,7 @@ async def debug_task():
 
 @app.get("/debug.html", response_class=HTMLResponse)
 def debug_page() -> str:
-    return (Path(__file__).parent / "templates/debug.html").read_text()
+    return DEBUG_HTML
 
 
 data_cache = DataCache()
